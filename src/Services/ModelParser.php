@@ -161,7 +161,8 @@ class ModelParser
             'mutators'      => $safe(fn () => $this->getMutators($reflection, $instance)),
             'scopes'        => $safe(fn () => $this->getScopes($reflection)),
             'globalScopes'  => $safe(fn () => $this->getGlobalScopes($reflection)),
-            'relationships' => $safe(fn () => $this->getRelationships($reflection, $instance)),
+            'relationships' => $relationships = $safe(fn () => $this->getRelationships($reflection, $instance)),
+            'methods'       => $safe(fn () => $this->getCustomMethods($reflection, array_keys($relationships))),
             'observers'     => $safe(fn () => $this->getObservers($reflection)),
             'policies'      => $safe(fn () => $this->getPolicies($class)),
             'columns'       => $safe(fn () => $this->getColumns($instance)),
@@ -299,6 +300,64 @@ class ModelParser
         }
 
         return $scopes;
+    }
+
+    /**
+     * Get custom public methods defined on the model (excluding Laravel internals).
+     */
+    protected function getCustomMethods(ReflectionClass $reflection, array $relationshipNames = []): array
+    {
+        $methods = [];
+        $exclude = [
+            'boot', 'booted', 'booting',
+            'newFactory', 'newCollection', 'newEloquentBuilder',
+            'resolveRouteBinding', 'resolveChildRouteBinding', 'resolveSoftDeletableRouteBinding',
+            'toSearchableArray', 'searchableAs', 'shouldBeSearchable',
+            'broadcastOn', 'broadcastAs', 'broadcastWith', 'broadcastChannel',
+            'prunable', 'prunableQuery',
+        ];
+
+        foreach ($reflection->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
+            if ($method->class !== $reflection->getName()) continue;
+            if ($method->isStatic()) continue;
+
+            $name = $method->getName();
+
+            // Skip magic methods
+            if (str_starts_with($name, '__')) continue;
+
+            // Skip accessors / mutators
+            if (preg_match('/^(get|set).+Attribute$/', $name)) continue;
+
+            // Skip scopes
+            if (preg_match('/^scope[A-Z]/', $name)) continue;
+
+            // Skip relationship methods (already shown in Relations tab)
+            if (in_array($name, $relationshipNames)) continue;
+
+            // Skip new-style accessors (return Attribute)
+            $rt = $method->getReturnType();
+            if ($rt instanceof ReflectionNamedType && $rt->getName() === 'Illuminate\Database\Eloquent\Casts\Attribute') continue;
+
+            // Skip known Laravel boilerplate
+            if (in_array($name, $exclude)) continue;
+
+            $params = [];
+            foreach ($method->getParameters() as $param) {
+                $p = '$' . $param->getName();
+                if ($param->isOptional()) {
+                    $p .= ' = ...';
+                }
+                $params[] = $p;
+            }
+
+            $methods[] = [
+                'name'   => $name,
+                'params' => '(' . implode(', ', $params) . ')',
+            ];
+        }
+
+        return $methods;
     }
 
     /**

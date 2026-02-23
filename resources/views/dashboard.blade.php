@@ -117,7 +117,6 @@
             <div
                 class="graph-canvas"
                 x-ref="canvas"
-                @click.self="selectedModel = null"
                 @mousemove.window="onMouseMove($event)"
                 @mouseup.window="onMouseUp()"
                 @wheel="onWheel($event)"
@@ -129,6 +128,7 @@
                     <div
                         class="graph-zoom-layer"
                         :style="'transform: scale(' + zoom + '); width:' + canvasSize.w + 'px; height:' + canvasSize.h + 'px;'"
+                        @click="if (!$event.target.closest('.entity-card')) selectedModel = null"
                     >
                         <div class="grid-bg"></div>
 

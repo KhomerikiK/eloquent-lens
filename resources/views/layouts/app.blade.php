@@ -28,9 +28,9 @@
             --border: #1e1e2e;
             --border-hover: #2e2e44;
             --text-primary: #e2e8f0;
-            --text-secondary: #94a3b8;
-            --text-muted: #475569;
-            --text-dim: #334155;
+            --text-secondary: #cbd5e1;
+            --text-muted: #8893a7;
+            --text-dim: #64748b;
             --accent: #7c3aed;
             --accent-light: #a78bfa;
             --accent-bg: rgba(124, 58, 237, 0.08);
@@ -657,18 +657,30 @@
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
+            gap: 12px;
+        }
+
+        .detail-title-row > div:first-child {
+            min-width: 0;
+            flex: 1;
         }
 
         .detail-name {
             font-size: 18px;
             font-weight: 700;
             letter-spacing: -0.03em;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .detail-namespace {
             font-size: 11px;
             color: var(--text-muted);
             margin-top: 4px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .btn-close {
@@ -839,6 +851,10 @@
         .relation-name {
             font-size: 13px;
             font-weight: 600;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            min-width: 0;
         }
 
         .relation-type {
@@ -852,6 +868,9 @@
             font-size: 11px;
             color: var(--text-muted);
             margin-top: 4px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         /* Scope item */
@@ -863,6 +882,9 @@
         .scope-name {
             font-size: 12px;
             font-weight: 600;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         /* Observer item */

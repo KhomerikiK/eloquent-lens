@@ -4,8 +4,8 @@
     <div class="detail-header">
         <div class="detail-title-row">
             <div>
-                <div class="detail-name" x-text="selectedModel"></div>
-                <div class="detail-namespace" x-text="selectedModelData.namespace + '\\' + selectedModel"></div>
+                <div class="detail-name" x-text="selectedModel" :title="selectedModel"></div>
+                <div class="detail-namespace" x-text="selectedModelData.namespace + '\\' + selectedModel" :title="selectedModelData.namespace + '\\' + selectedModel"></div>
             </div>
             <button class="btn-close" @click="selectedModel = null">✕</button>
         </div>
@@ -215,6 +215,20 @@
                     </template>
                     <template x-if="selectedModelData.observers.length === 0">
                         <span class="empty-state">No observers registered</span>
+                    </template>
+                </div>
+
+                {{-- Custom Methods --}}
+                <div class="section">
+                    <div class="section-title">Methods</div>
+                    <template x-for="method in selectedModelData.methods" :key="method.name">
+                        <div style="display: flex; align-items: baseline; gap: 4px; padding: 3px 0; border-bottom: 1px solid var(--border);">
+                            <span style="font-size: 12px; font-weight: 600; color: var(--text-primary); white-space: nowrap;" x-text="method.name"></span>
+                            <span style="font-size: 10px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" x-text="method.params"></span>
+                        </div>
+                    </template>
+                    <template x-if="!selectedModelData.methods || selectedModelData.methods.length === 0">
+                        <span class="empty-state">No custom methods</span>
                     </template>
                 </div>
 
