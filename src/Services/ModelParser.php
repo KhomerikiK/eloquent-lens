@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use ReflectionClass;
 use ReflectionMethod;
+use ReflectionNamedType;
 use Throwable;
 
 class ModelParser
@@ -34,11 +35,25 @@ class ModelParser
         $this->parsedModels = [];
         $classes = $this->discoverModels();
 
+        // Detect duplicate short names so we can disambiguate
+        $shortNameCounts = [];
+        foreach ($classes as $class) {
+            $short = class_basename($class);
+            $shortNameCounts[$short] = ($shortNameCounts[$short] ?? 0) + 1;
+        }
+
         foreach ($classes as $class) {
             try {
                 $data = $this->parseModel($class);
                 if ($data) {
-                    $this->parsedModels[$data['name']] = $data;
+                    // Disambiguate duplicate short names using relative namespace
+                    $key = $data['name'];
+                    if (($shortNameCounts[$key] ?? 0) > 1) {
+                        $relative = str_replace($this->namespace . '\\', '', $class);
+                        $key = str_replace('\\', '/', $relative);
+                        $data['name'] = $key;
+                    }
+                    $this->parsedModels[$key] = $data;
                 }
             } catch (Throwable $e) {
                 // Skip models that can't be parsed
@@ -126,28 +141,34 @@ class ModelParser
             return null;
         }
 
+        // Build model data resiliently — each field wrapped so one failure
+        // doesn't drop the entire model from the dashboard
+        $safe = function (callable $fn, $default = []) {
+            try { return $fn(); } catch (Throwable $e) { return $default; }
+        };
+
         return [
             'name'          => $shortName,
             'fqcn'          => $class,
             'namespace'     => $reflection->getNamespaceName(),
-            'table'         => $this->getTableName($instance),
-            'traits'        => $this->getTraits($reflection),
-            'fillable'      => $this->getFillable($instance),
-            'guarded'       => $this->getGuarded($instance),
-            'hidden'        => $this->getHidden($instance),
-            'casts'         => $this->getCasts($instance),
-            'accessors'     => $this->getAccessors($reflection, $instance),
-            'mutators'      => $this->getMutators($reflection, $instance),
-            'scopes'        => $this->getScopes($reflection),
-            'globalScopes'  => $this->getGlobalScopes($reflection),
-            'relationships' => $this->getRelationships($reflection, $instance),
-            'observers'     => $this->getObservers($reflection),
-            'policies'      => $this->getPolicies($class),
-            'columns'       => $this->getColumns($instance),
-            'indexes'       => $this->getIndexes($instance),
-            'hasTimestamps' => $instance->usesTimestamps(),
+            'table'         => $safe(fn () => $this->getTableName($instance), ''),
+            'traits'        => $safe(fn () => $this->getTraits($reflection)),
+            'fillable'      => $safe(fn () => $this->getFillable($instance)),
+            'guarded'       => $safe(fn () => $this->getGuarded($instance)),
+            'hidden'        => $safe(fn () => $this->getHidden($instance)),
+            'casts'         => $safe(fn () => $this->getCasts($instance)),
+            'accessors'     => $safe(fn () => $this->getAccessors($reflection, $instance)),
+            'mutators'      => $safe(fn () => $this->getMutators($reflection, $instance)),
+            'scopes'        => $safe(fn () => $this->getScopes($reflection)),
+            'globalScopes'  => $safe(fn () => $this->getGlobalScopes($reflection)),
+            'relationships' => $safe(fn () => $this->getRelationships($reflection, $instance)),
+            'observers'     => $safe(fn () => $this->getObservers($reflection)),
+            'policies'      => $safe(fn () => $this->getPolicies($class)),
+            'columns'       => $safe(fn () => $this->getColumns($instance)),
+            'indexes'       => $safe(fn () => $this->getIndexes($instance)),
+            'hasTimestamps' => $safe(fn () => $instance->usesTimestamps(), false),
             'hasSoftDeletes'=> in_array(SoftDeletes::class, class_uses_recursive($class)),
-            'linesOfCode'   => $this->countLines($reflection),
+            'linesOfCode'   => $safe(fn () => $this->countLines($reflection), 0),
             'filePath'      => $reflection->getFileName(),
             'complexity'    => 0, // calculated later
         ];
@@ -210,9 +231,9 @@ class ModelParser
             }
 
             // New style: returns Illuminate\Database\Eloquent\Casts\Attribute
-            if ($method->getReturnType()) {
-                $returnType = $method->getReturnType()->getName() ?? '';
-                if ($returnType === 'Illuminate\Database\Eloquent\Casts\Attribute') {
+            $rt = $method->getReturnType();
+            if ($rt instanceof ReflectionNamedType) {
+                if ($rt->getName() === 'Illuminate\Database\Eloquent\Casts\Attribute') {
                     $accessors[] = Str::snake($name);
                 }
             }
@@ -304,9 +325,9 @@ class ModelParser
             if ($method->class !== $reflection->getName()) continue;
             if ($method->getNumberOfRequiredParameters() > 0) continue;
 
-            // Check return type hint first
+            // Check return type hint first (only named types, not union/intersection)
             $returnType = $method->getReturnType();
-            if ($returnType) {
+            if ($returnType instanceof ReflectionNamedType) {
                 $typeName = $returnType->getName();
                 foreach ($relationTypes as $relationType) {
                     if ($typeName === $relationType || is_subclass_of($typeName, $relationType)) {
