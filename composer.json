@@ -1,5 +1,5 @@
 {
-    "name": "your-vendor/eloquent-lens",
+    "name": "khomerikik/eloquent-lens",
     "description": "A Horizon-like dashboard that visualizes your Eloquent models, relationships, scopes, observers, and more.",
     "keywords": ["laravel", "eloquent", "visualizer", "models", "relationships", "dashboard"],
     "license": "MIT",

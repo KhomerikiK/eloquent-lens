@@ -24,7 +24,7 @@ A Horizon-like dashboard that visualizes your Laravel Eloquent models, relations
 ## Installation
 
 ```bash
-composer require your-vendor/eloquent-lens --dev
+composer require khomerikik/eloquent-lens --dev
 ```
 
 ```bash
