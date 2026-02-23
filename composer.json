@@ -29,7 +29,5 @@
                 "EloquentLens\\EloquentLensServiceProvider"
             ]
         }
-    },
-    "minimum-stability": "dev",
-    "prefer-stable": true
+    }
 }
