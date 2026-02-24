@@ -13,7 +13,7 @@ beforeEach(function () {
 // --- Discovery ---
 
 it('discovers the correct number of models, skipping abstract', function () {
-    expect($this->models)->toHaveCount(5);
+    expect($this->models)->toHaveCount(6);
     expect(array_keys($this->models))->each->not->toBe('AbstractModel');
 });
 
@@ -31,7 +31,7 @@ it('respects excluded_models config', function () {
 
     $models = $parser->parse();
 
-    expect($models)->toHaveCount(4);
+    expect($models)->toHaveCount(5);
     expect(array_keys($models))->not->toContain('Tag');
 });
 
@@ -206,4 +206,43 @@ it('includes correct fqcn and namespace', function () {
         ->toBe('EloquentLens\\Tests\\Fixtures\\Models\\User');
     expect($this->models['User']['namespace'])
         ->toBe('EloquentLens\\Tests\\Fixtures\\Models');
+});
+
+// --- Security: filePath is relative (#3) ---
+
+it('returns relative file paths, not absolute', function () {
+    foreach ($this->models as $model) {
+        expect($model['filePath'])->not->toStartWith('/');
+    }
+});
+
+// --- Security: namespace guard (#9) ---
+
+it('skips classes outside the configured namespace', function () {
+    // OutsideNamespace.php lives in the model dir but has namespace Some\Other\Namespace
+    expect(array_keys($this->models))->not->toContain('OutsideNamespace');
+});
+
+// --- Security: no side-effect invocation (#6) ---
+
+it('does not invoke arbitrary zero-arg methods during parsing', function () {
+    unset($_ENV['ELOQUENT_LENS_SIDE_EFFECT_CALLED']);
+
+    // Re-parse to trigger discovery of ModelWithSideEffect
+    $parser = new ModelParser(
+        [__DIR__.'/../Fixtures/Models'],
+        'EloquentLens\\Tests\\Fixtures\\Models',
+    );
+    $models = $parser->parse();
+
+    expect($models)->toHaveKey('ModelWithSideEffect');
+    expect($_ENV['ELOQUENT_LENS_SIDE_EFFECT_CALLED'] ?? false)->toBeFalse();
+});
+
+it('still detects relationships on models with side-effect methods', function () {
+    $rels = $this->models['ModelWithSideEffect']['relationships'];
+
+    expect($rels)->toHaveKey('user');
+    expect($rels['user']['type'])->toBe('belongsTo');
+    expect($rels['user']['model'])->toBe('User');
 });

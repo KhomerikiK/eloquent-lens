@@ -808,9 +808,10 @@ function eloquentLens(apiUrl) {
         },
 
         get edgeSvgHtml() {
-            return this.edges.map(e =>
-                `<path d="${e.path}" fill="none" stroke="${e.color}" stroke-width="${e.isActive ? 2.5 : 1.5}" stroke-dasharray="${e.isDashed ? '6 4' : 'none'}" opacity="${e.opacity}" marker-end="url(#arrow-${e.type})" style="transition:opacity .3s ease"/>`
-            ).join('');
+            return this.edges.map(e => {
+                const safeType = e.type.replace(/[^a-zA-Z]/g, '');
+                return `<path d="${e.path}" fill="none" stroke="${e.color}" stroke-width="${e.isActive ? 2.5 : 1.5}" stroke-dasharray="${e.isDashed ? '6 4' : 'none'}" opacity="${e.opacity}" marker-end="url(#arrow-${safeType})" style="transition:opacity .3s ease"/>`;
+            }).join('');
         },
 
         get selectedModelData() {
@@ -937,6 +938,7 @@ function eloquentLens(apiUrl) {
             const models = this.allModels;
 
             function dfs(current, path, visited) {
+                if (results.length >= 50) return;
                 if (current === this.pathTo) {
                     results.push([...path]);
                     return;

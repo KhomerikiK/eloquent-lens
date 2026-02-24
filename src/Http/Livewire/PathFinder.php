@@ -32,6 +32,10 @@ class PathFinder extends Component
 
     protected function dfs(string $current, array $path, \SplStack $visited): void
     {
+        if (count($this->results) >= 50) {
+            return;
+        }
+
         if ($current === $this->to) {
             $this->results[] = $path;
 

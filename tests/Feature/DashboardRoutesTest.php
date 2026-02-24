@@ -17,6 +17,15 @@ it('returns JSON with model names from the api route', function () {
     expect(array_keys($data))->toContain('User', 'Post', 'Comment', 'Profile', 'Tag');
 });
 
+it('api response does not contain absolute file paths', function () {
+    $response = $this->getJson('/eloquent-lens/api/models');
+    $data = $response->json();
+
+    foreach ($data as $model) {
+        expect($model['filePath'])->not->toStartWith('/');
+    }
+});
+
 it('does not register routes when enabled is false', function () {
     // Rebuild the app with enabled=false
     $this->app['config']->set('eloquent-lens.enabled', false);
@@ -37,4 +46,11 @@ it('does not register routes when enabled is false', function () {
     // enabled=false should not duplicate them. We verify by checking route
     // count hasn't grown beyond the original 2.
     expect(count($routes))->toBeLessThanOrEqual(2);
+});
+
+it('config defaults enabled to false', function () {
+    // Read the raw config file default (not the test override)
+    $config = require __DIR__.'/../../config/eloquent-lens.php';
+
+    expect($config['enabled'])->toBeFalse();
 });

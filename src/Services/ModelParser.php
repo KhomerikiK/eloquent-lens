@@ -85,6 +85,10 @@ class ModelParser
 
             $files = File::allFiles($path);
 
+            if (count($files) > 500) {
+                continue;
+            }
+
             foreach ($files as $file) {
                 if ($file->getExtension() !== 'php') {
                     continue;
@@ -96,6 +100,9 @@ class ModelParser
                     continue;
                 }
                 if (in_array($className, $this->excludedModels)) {
+                    continue;
+                }
+                if (! str_starts_with($className, $this->namespace)) {
                     continue;
                 }
 
@@ -186,7 +193,7 @@ class ModelParser
             'hasTimestamps' => $safe(fn () => $instance->usesTimestamps(), false),
             'hasSoftDeletes' => in_array(SoftDeletes::class, class_uses_recursive($class)),
             'linesOfCode' => $safe(fn () => $this->countLines($reflection), 0),
-            'filePath' => $reflection->getFileName(),
+            'filePath' => $this->getRelativePath($reflection->getFileName()),
             'complexity' => 0, // calculated later
         ];
     }
@@ -467,18 +474,10 @@ class ModelParser
                 }
             }
 
-            // Fallback: try to call the method and check return type
-            try {
-                $result = $method->invoke($instance);
-                foreach ($relationTypes as $relationType) {
-                    if ($result instanceof $relationType) {
-                        $relationships[$method->getName()] = $this->extractRelationData($result, $relationType);
-                        break;
-                    }
-                }
-            } catch (Throwable $e) {
-                // Skip methods that can't be invoked
-                continue;
+            // Fallback: parse source code to detect relationships without invoking methods
+            $relData = $this->parseRelationFromSource($method);
+            if ($relData) {
+                $relationships[$method->getName()] = $relData;
             }
         }
 
@@ -525,7 +524,7 @@ class ModelParser
         return $data;
     }
 
-    protected function parseRelationFromSource(ReflectionMethod $method, string $type): ?array
+    protected function parseRelationFromSource(ReflectionMethod $method, ?string $type = null): ?array
     {
         $source = file_get_contents($method->getDeclaringClass()->getFileName());
         $methodName = $method->getName();
@@ -533,6 +532,24 @@ class ModelParser
         // Find the method body and extract the related model
         if (preg_match('/function\s+'.$methodName.'\s*\([^)]*\)[^{]*\{([^}]+)\}/s', $source, $matches)) {
             $body = $matches[1];
+
+            // Detect relation type from method call if not provided
+            if (! $type) {
+                $relationMethodNames = [
+                    'hasOne', 'hasMany', 'belongsTo', 'belongsToMany',
+                    'morphOne', 'morphMany', 'morphTo', 'morphToMany', 'morphedByMany',
+                    'hasOneThrough', 'hasManyThrough',
+                ];
+                foreach ($relationMethodNames as $relMethod) {
+                    if (preg_match('/\$this\s*->\s*'.$relMethod.'\s*\(/', $body)) {
+                        $type = 'Illuminate\\Database\\Eloquent\\Relations\\'.ucfirst($relMethod);
+                        break;
+                    }
+                }
+                if (! $type) {
+                    return null;
+                }
+            }
 
             // Look for Model::class references
             if (preg_match('/([A-Z][A-Za-z]+)::class/', $body, $modelMatch)) {
@@ -642,6 +659,26 @@ class ModelParser
         }
 
         return $columns;
+    }
+
+    /**
+     * Strip absolute path to a relative one for safe display.
+     */
+    protected function getRelativePath(string $filePath): string
+    {
+        $basePath = base_path().'/';
+        if (str_starts_with($filePath, $basePath)) {
+            return substr($filePath, strlen($basePath));
+        }
+
+        foreach ($this->modelPaths as $modelPath) {
+            $prefix = dirname($modelPath).'/';
+            if (str_starts_with($filePath, $prefix)) {
+                return substr($filePath, strlen($prefix));
+            }
+        }
+
+        return basename($filePath);
     }
 
     /**

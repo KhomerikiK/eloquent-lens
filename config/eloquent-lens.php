@@ -46,9 +46,9 @@ return [
     |--------------------------------------------------------------------------
     | Enabled in Environment
     |--------------------------------------------------------------------------
-    | EloquentLens is designed for local development. You can control
-    | which environments it's enabled in.
+    | EloquentLens is designed for local development. It is disabled by
+    | default — set ELOQUENT_LENS_ENABLED=true in your .env to enable it.
     */
-    'enabled' => env('ELOQUENT_LENS_ENABLED', true),
+    'enabled' => env('ELOQUENT_LENS_ENABLED', false),
 
 ];
