@@ -416,19 +416,30 @@ function eloquentLens(apiUrl) {
         },
 
         generatePositions() {
-            const names = Object.keys(this.allModels);
+            const models = this.allModels;
+            const names = Object.keys(models);
             if (names.length === 0) return;
 
             const cardW = 260;
             const minGap = 15;
 
+            // Pre-cache card heights to avoid repeated reactive reads
+            const heights = {};
+            names.forEach(n => {
+                const m = models[n];
+                if (!m) { heights[n] = 120; return; }
+                const colCount = Math.min(m.columns ? m.columns.length : 0, 8);
+                const hasOverflow = (m.columns ? m.columns.length : 0) > 8;
+                const relCount = Object.keys(m.relationships).length;
+                heights[n] = 40 + Math.max(colCount, 1) * 18 + (hasOverflow ? 18 : 0) + 14 + Math.max(relCount, 1) * 18 + 14;
+            });
+
             // Step 1: Build adjacency graph
             const adj = {};
             names.forEach(n => adj[n] = new Set());
             names.forEach(name => {
-                const model = this.allModels[name];
-                Object.values(model.relationships).forEach(rel => {
-                    if (rel.model && this.allModels[rel.model]) {
+                Object.values(models[name].relationships).forEach(rel => {
+                    if (rel.model && models[rel.model]) {
                         adj[name].add(rel.model);
                         adj[rel.model].add(name);
                     }
@@ -457,6 +468,7 @@ function eloquentLens(apiUrl) {
             });
 
             // Step 3: Force-directed simulation within each component
+            // All work done on plain objects to avoid Alpine reactivity overhead
             const nodePos = {};
             components.forEach(comp => {
                 if (comp.length === 1) {
@@ -489,7 +501,7 @@ function eloquentLens(apiUrl) {
                         for (let j = i + 1; j < comp.length; j++) {
                             const a = comp[i], b = comp[j];
                             const pa = nodePos[a], pb = nodePos[b];
-                            const hA = this.getCardHeight(a), hB = this.getCardHeight(b);
+                            const hA = heights[a], hB = heights[b];
 
                             const dx = pb.x - pa.x;
                             const dy = pb.y - pa.y;
@@ -549,7 +561,8 @@ function eloquentLens(apiUrl) {
             });
 
             // Step 4: Normalize and arrange components horizontally
-            // Sort components largest-first
+            // Build final positions in a plain object, assign to reactive proxy once at end
+            const finalPos = {};
             components.sort((a, b) => b.length - a.length);
 
             const componentGap = 60;
@@ -570,7 +583,7 @@ function eloquentLens(apiUrl) {
 
                 // Place at cursor position
                 comp.forEach(n => {
-                    this.positions[n] = {
+                    finalPos[n] = {
                         x: cursorX + nodePos[n].x,
                         y: startY + nodePos[n].y,
                     };
@@ -590,8 +603,8 @@ function eloquentLens(apiUrl) {
                 for (let i = 0; i < names.length; i++) {
                     for (let j = i + 1; j < names.length; j++) {
                         const a = names[i], b = names[j];
-                        const pa = this.positions[a], pb = this.positions[b];
-                        const hA = this.getCardHeight(a), hB = this.getCardHeight(b);
+                        const pa = finalPos[a], pb = finalPos[b];
+                        const hA = heights[a], hB = heights[b];
 
                         const overlapX = (cardW + minGap) - Math.abs(pb.x - pa.x);
                         const overlapY = ((hA + hB) / 2 + minGap) - Math.abs(pb.y - pa.y);
@@ -617,18 +630,21 @@ function eloquentLens(apiUrl) {
             // Step 6: Clamp — ensure no card is off-screen at negative coords
             let globalMinX = Infinity, globalMinY = Infinity;
             names.forEach(n => {
-                globalMinX = Math.min(globalMinX, this.positions[n].x);
-                globalMinY = Math.min(globalMinY, this.positions[n].y);
+                globalMinX = Math.min(globalMinX, finalPos[n].x);
+                globalMinY = Math.min(globalMinY, finalPos[n].y);
             });
             const padX = 40, padY = 40;
             if (globalMinX < padX || globalMinY < padY) {
                 const shiftX = globalMinX < padX ? padX - globalMinX : 0;
                 const shiftY = globalMinY < padY ? padY - globalMinY : 0;
                 names.forEach(n => {
-                    this.positions[n].x += shiftX;
-                    this.positions[n].y += shiftY;
+                    finalPos[n].x += shiftX;
+                    finalPos[n].y += shiftY;
                 });
             }
+
+            // Single reactive assignment — triggers one Alpine update instead of thousands
+            this.positions = finalPos;
         },
 
         resetLayout() {
