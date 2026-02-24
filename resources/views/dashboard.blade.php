@@ -386,6 +386,8 @@ function eloquentLens(apiUrl) {
                 this.loadingSteps[3] = { label: 'Layout ready — enjoy!', done: true, active: false };
                 await new Promise(r => setTimeout(r, 300));
 
+                this.$nextTick(() => { this.fitToView(); });
+
             } catch (e) {
                 this.loadingSteps = this.loadingSteps.map(s => s.active ? { ...s, label: 'Error: ' + e.message, active: false } : s);
                 this.loadingTip = 'Something went wrong. Check the console.';
@@ -399,13 +401,7 @@ function eloquentLens(apiUrl) {
         async refreshModels() {
             this.selectedModel = null;
             await this.fetchModels();
-            this.zoom = 1;
-            this.$nextTick(() => {
-                if (this.$refs.canvas) {
-                    this.$refs.canvas.scrollTop = 0;
-                    this.$refs.canvas.scrollLeft = 0;
-                }
-            });
+            this.$nextTick(() => { this.fitToView(); });
         },
 
         generatePositions() {
@@ -556,13 +552,21 @@ function eloquentLens(apiUrl) {
             // Step 4: Normalize and arrange components horizontally
             // Build final positions in a plain object, assign to reactive proxy once at end
             const finalPos = {};
-            components.sort((a, b) => b.length - a.length);
+            // Separate singletons (no relations) from connected components
+            const singletons = [];
+            const connected = [];
+            components.forEach(comp => {
+                if (comp.length === 1) singletons.push(comp[0]);
+                else connected.push(comp);
+            });
+            connected.sort((a, b) => b.length - a.length);
 
             const componentGap = 60;
             let cursorX = 80;
             const startY = 60;
+            let connectedMaxY = 0;
 
-            components.forEach(comp => {
+            connected.forEach(comp => {
                 // Normalize component positions to start at (0, 0)
                 let minX = Infinity, minY = Infinity;
                 comp.forEach(n => {
@@ -580,6 +584,7 @@ function eloquentLens(apiUrl) {
                         x: cursorX + nodePos[n].x,
                         y: startY + nodePos[n].y,
                     };
+                    connectedMaxY = Math.max(connectedMaxY, finalPos[n].y + heights[n]);
                 });
 
                 // Advance cursor past this component's bounding box
@@ -589,6 +594,32 @@ function eloquentLens(apiUrl) {
                 });
                 cursorX += maxX + componentGap;
             });
+
+            // Arrange singletons in a compact grid below connected components
+            if (singletons.length > 0) {
+                singletons.sort((a, b) => a.localeCompare(b));
+                const gridTop = connected.length > 0 ? connectedMaxY + componentGap : startY;
+                const cols = Math.max(1, Math.ceil(Math.sqrt(singletons.length)));
+                const colW = cardW + minGap;
+                singletons.forEach((n, i) => {
+                    const col = i % cols;
+                    const row = Math.floor(i / cols);
+                    // Stack rows using actual card heights of preceding rows
+                    let rowY = gridTop;
+                    for (let r = 0; r < row; r++) {
+                        // Find max height in row r
+                        let rowMaxH = 0;
+                        for (let c = 0; c < cols; c++) {
+                            const idx = r * cols + c;
+                            if (idx < singletons.length) {
+                                rowMaxH = Math.max(rowMaxH, heights[singletons[idx]]);
+                            }
+                        }
+                        rowY += rowMaxH + minGap;
+                    }
+                    finalPos[n] = { x: 80 + col * colW, y: rowY };
+                });
+            }
 
             // Step 5: Final overlap removal (safety net)
             for (let pass = 0; pass < 5; pass++) {
@@ -642,13 +673,22 @@ function eloquentLens(apiUrl) {
 
         resetLayout() {
             this.generatePositions();
-            this.zoom = 1;
             this.selectedModel = null;
+            this.$nextTick(() => { this.fitToView(); });
+        },
+
+        fitToView() {
+            const canvas = this.$refs.canvas;
+            if (!canvas) return;
+            const cs = this.canvasSize;
+            if (cs.w <= 0 || cs.h <= 0) return;
+            const vw = canvas.clientWidth;
+            const vh = canvas.clientHeight;
+            const z = Math.min(vw / cs.w, vh / cs.h);
+            this.zoom = Math.round(Math.max(0.1, Math.min(1, z)) * 100) / 100;
             this.$nextTick(() => {
-                if (this.$refs.canvas) {
-                    this.$refs.canvas.scrollTop = 0;
-                    this.$refs.canvas.scrollLeft = 0;
-                }
+                canvas.scrollLeft = 0;
+                canvas.scrollTop = 0;
             });
         },
 
@@ -910,7 +950,7 @@ function eloquentLens(apiUrl) {
 
             // Smooth multiplicative zoom
             const factor = Math.pow(0.99, e.deltaY);
-            const newZoom = Math.round(Math.max(0.25, Math.min(2, this.zoom * factor)) * 100) / 100;
+            const newZoom = Math.round(Math.max(0.1, Math.min(2, this.zoom * factor)) * 100) / 100;
             if (newZoom === this.zoom) return;
             this.zoom = newZoom;
 
@@ -926,7 +966,7 @@ function eloquentLens(apiUrl) {
         },
 
         zoomOut() {
-            this.zoom = Math.round(Math.max(0.25, this.zoom / 1.15) * 100) / 100;
+            this.zoom = Math.round(Math.max(0.1, this.zoom / 1.15) * 100) / 100;
         },
 
         // ── Path Finder ──
