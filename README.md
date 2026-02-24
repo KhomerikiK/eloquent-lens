@@ -26,9 +26,28 @@ composer require khomerikik/eloquent-lens --dev
 php artisan eloquent-lens:install
 ```
 
+Add to your `.env` to enable the dashboard:
+
+```env
+ELOQUENT_LENS_ENABLED=true
+```
+
 Then open `/eloquent-lens` in your browser.
 
-> **Dev only** — install with `--dev`. Not meant for production.
+> **Dev only** — install with `--dev`. The dashboard is disabled by default and must be explicitly enabled.
+
+## Config
+
+Published to `config/eloquent-lens.php` after running `eloquent-lens:install`:
+
+| Option | Default | Description |
+|---|---|---|
+| `path` | `'eloquent-lens'` | URL prefix — dashboard is available at `/{path}` |
+| `middleware` | `['web']` | Route middleware — add `'auth'` to restrict access |
+| `model_paths` | `[app_path('Models')]` | Directories to scan for model files |
+| `model_namespace` | `'App\\Models'` | Base namespace for your models |
+| `excluded_models` | `[]` | Model classes to skip during scanning |
+| `enabled` | `false` | Disabled by default — set `ELOQUENT_LENS_ENABLED=true` in `.env` to enable |
 
 ---
 
@@ -83,21 +102,6 @@ Pick two models and discover how they connect through relationships, up to 5 hop
 <p align="center">
   <img src="arts/image-4.png" alt="Path Finder showing routes between Balance and Transfer" />
 </p>
-
----
-
-## Config
-
-Published to `config/eloquent-lens.php`:
-
-```php
-'path' => 'eloquent-lens',          // URL prefix
-'middleware' => ['web'],             // add 'auth' if needed
-'model_paths' => [app_path('Models')],
-'model_namespace' => 'App\\Models',
-'excluded_models' => [],
-'enabled' => env('ELOQUENT_LENS_ENABLED', true),
-```
 
 ---
 

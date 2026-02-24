@@ -23,13 +23,6 @@ class EloquentLensServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        if (! config('eloquent-lens.enabled', true)) {
-            return;
-        }
-
-        $this->loadRoutesFrom(__DIR__.'/../routes/web.php');
-        $this->loadViewsFrom(__DIR__.'/../resources/views', 'eloquent-lens');
-
         if ($this->app->runningInConsole()) {
             $this->commands([
                 InstallCommand::class,
@@ -43,5 +36,12 @@ class EloquentLensServiceProvider extends ServiceProvider
                 __DIR__.'/../public' => public_path('vendor/eloquent-lens'),
             ], 'eloquent-lens-assets');
         }
+
+        if (! config('eloquent-lens.enabled', false)) {
+            return;
+        }
+
+        $this->loadRoutesFrom(__DIR__.'/../routes/web.php');
+        $this->loadViewsFrom(__DIR__.'/../resources/views', 'eloquent-lens');
     }
 }
