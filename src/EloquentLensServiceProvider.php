@@ -2,20 +2,20 @@
 
 namespace EloquentLens;
 
-use Illuminate\Support\ServiceProvider;
-use Livewire\Livewire;
-use EloquentLens\Http\Livewire\ModelGraph;
+use EloquentLens\Console\InstallCommand;
 use EloquentLens\Http\Livewire\ModelDetail;
+use EloquentLens\Http\Livewire\ModelGraph;
 use EloquentLens\Http\Livewire\PathFinder;
 use EloquentLens\Http\Livewire\SearchBar;
-use EloquentLens\Console\InstallCommand;
 use EloquentLens\Services\ModelParser;
+use Illuminate\Support\ServiceProvider;
+use Livewire\Livewire;
 
 class EloquentLensServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->mergeConfigFrom(__DIR__ . '/../config/eloquent-lens.php', 'eloquent-lens');
+        $this->mergeConfigFrom(__DIR__.'/../config/eloquent-lens.php', 'eloquent-lens');
 
         $this->app->singleton(ModelParser::class, function ($app) {
             return new ModelParser(
@@ -32,8 +32,8 @@ class EloquentLensServiceProvider extends ServiceProvider
             return;
         }
 
-        $this->loadRoutesFrom(__DIR__ . '/../routes/web.php');
-        $this->loadViewsFrom(__DIR__ . '/../resources/views', 'eloquent-lens');
+        $this->loadRoutesFrom(__DIR__.'/../routes/web.php');
+        $this->loadViewsFrom(__DIR__.'/../resources/views', 'eloquent-lens');
 
         // Register Livewire components
         Livewire::component('eloquent-lens::model-graph', ModelGraph::class);
@@ -47,11 +47,11 @@ class EloquentLensServiceProvider extends ServiceProvider
             ]);
 
             $this->publishes([
-                __DIR__ . '/../config/eloquent-lens.php' => config_path('eloquent-lens.php'),
+                __DIR__.'/../config/eloquent-lens.php' => config_path('eloquent-lens.php'),
             ], 'eloquent-lens-config');
 
             $this->publishes([
-                __DIR__ . '/../public' => public_path('vendor/eloquent-lens'),
+                __DIR__.'/../public' => public_path('vendor/eloquent-lens'),
             ], 'eloquent-lens-assets');
         }
     }

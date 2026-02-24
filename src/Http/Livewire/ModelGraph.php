@@ -2,8 +2,8 @@
 
 namespace EloquentLens\Http\Livewire;
 
-use Livewire\Component;
 use EloquentLens\Services\ModelParser;
+use Livewire\Component;
 
 class ModelGraph extends Component
 {

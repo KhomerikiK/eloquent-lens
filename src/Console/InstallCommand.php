@@ -7,6 +7,7 @@ use Illuminate\Console\Command;
 class InstallCommand extends Command
 {
     protected $signature = 'eloquent-lens:install';
+
     protected $description = 'Install EloquentLens package assets and configuration';
 
     public function handle(): int

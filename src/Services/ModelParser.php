@@ -15,8 +15,11 @@ use Throwable;
 class ModelParser
 {
     protected array $modelPaths;
+
     protected string $namespace;
+
     protected array $excludedModels;
+
     protected array $parsedModels = [];
 
     public function __construct(array $modelPaths, string $namespace, array $excludedModels = [])
@@ -48,7 +51,7 @@ class ModelParser
                     // Disambiguate duplicate short names using relative namespace
                     $key = $data['name'];
                     if (($shortNameCounts[$key] ?? 0) > 1) {
-                        $relative = str_replace($this->namespace . '\\', '', $class);
+                        $relative = str_replace($this->namespace.'\\', '', $class);
                         $key = str_replace('\\', '/', $relative);
                         $data['name'] = $key;
                     }
@@ -89,16 +92,26 @@ class ModelParser
 
                 $className = $this->getClassFromFile($file->getPathname());
 
-                if (! $className) continue;
-                if (in_array($className, $this->excludedModels)) continue;
+                if (! $className) {
+                    continue;
+                }
+                if (in_array($className, $this->excludedModels)) {
+                    continue;
+                }
 
                 try {
-                    if (! class_exists($className)) continue;
+                    if (! class_exists($className)) {
+                        continue;
+                    }
 
                     $reflection = new ReflectionClass($className);
 
-                    if ($reflection->isAbstract()) continue;
-                    if (! $reflection->isSubclassOf(Model::class)) continue;
+                    if ($reflection->isAbstract()) {
+                        continue;
+                    }
+                    if (! $reflection->isSubclassOf(Model::class)) {
+                        continue;
+                    }
 
                     $classes[] = $className;
                 } catch (Throwable $e) {
@@ -119,7 +132,7 @@ class ModelParser
 
         if (preg_match('/namespace\s+(.+?);/', $contents, $nsMatch) &&
             preg_match('/class\s+(\w+)/', $contents, $classMatch)) {
-            return $nsMatch[1] . '\\' . $classMatch[1];
+            return $nsMatch[1].'\\'.$classMatch[1];
         }
 
         return null;
@@ -143,34 +156,38 @@ class ModelParser
         // Build model data resiliently — each field wrapped so one failure
         // doesn't drop the entire model from the dashboard
         $safe = function (callable $fn, $default = []) {
-            try { return $fn(); } catch (Throwable $e) { return $default; }
+            try {
+                return $fn();
+            } catch (Throwable $e) {
+                return $default;
+            }
         };
 
         return [
-            'name'          => $shortName,
-            'fqcn'          => $class,
-            'namespace'     => $reflection->getNamespaceName(),
-            'table'         => $safe(fn () => $this->getTableName($instance), ''),
-            'traits'        => $safe(fn () => $this->getTraits($reflection)),
-            'fillable'      => $safe(fn () => $this->getFillable($instance)),
-            'guarded'       => $safe(fn () => $this->getGuarded($instance)),
-            'hidden'        => $safe(fn () => $this->getHidden($instance)),
-            'casts'         => $safe(fn () => $this->getCasts($instance)),
-            'accessors'     => $safe(fn () => $this->getAccessors($reflection, $instance)),
-            'mutators'      => $safe(fn () => $this->getMutators($reflection, $instance)),
-            'scopes'        => $safe(fn () => $this->getScopes($reflection)),
-            'globalScopes'  => $safe(fn () => $this->getGlobalScopes($reflection)),
+            'name' => $shortName,
+            'fqcn' => $class,
+            'namespace' => $reflection->getNamespaceName(),
+            'table' => $safe(fn () => $this->getTableName($instance), ''),
+            'traits' => $safe(fn () => $this->getTraits($reflection)),
+            'fillable' => $safe(fn () => $this->getFillable($instance)),
+            'guarded' => $safe(fn () => $this->getGuarded($instance)),
+            'hidden' => $safe(fn () => $this->getHidden($instance)),
+            'casts' => $safe(fn () => $this->getCasts($instance)),
+            'accessors' => $safe(fn () => $this->getAccessors($reflection, $instance)),
+            'mutators' => $safe(fn () => $this->getMutators($reflection, $instance)),
+            'scopes' => $safe(fn () => $this->getScopes($reflection)),
+            'globalScopes' => $safe(fn () => $this->getGlobalScopes($reflection)),
             'relationships' => $relationships = $safe(fn () => $this->getRelationships($reflection, $instance)),
-            'methods'       => $safe(fn () => $this->getCustomMethods($reflection, array_keys($relationships))),
-            'observers'     => $safe(fn () => $this->getObservers($reflection)),
-            'policies'      => $safe(fn () => $this->getPolicies($class)),
-            'columns'       => $safe(fn () => $this->getColumnsFromModel($instance)),
-            'indexes'       => [],
+            'methods' => $safe(fn () => $this->getCustomMethods($reflection, array_keys($relationships))),
+            'observers' => $safe(fn () => $this->getObservers($reflection)),
+            'policies' => $safe(fn () => $this->getPolicies($class)),
+            'columns' => $safe(fn () => $this->getColumnsFromModel($instance)),
+            'indexes' => [],
             'hasTimestamps' => $safe(fn () => $instance->usesTimestamps(), false),
-            'hasSoftDeletes'=> in_array(SoftDeletes::class, class_uses_recursive($class)),
-            'linesOfCode'   => $safe(fn () => $this->countLines($reflection), 0),
-            'filePath'      => $reflection->getFileName(),
-            'complexity'    => 0, // calculated later
+            'hasSoftDeletes' => in_array(SoftDeletes::class, class_uses_recursive($class)),
+            'linesOfCode' => $safe(fn () => $this->countLines($reflection), 0),
+            'filePath' => $reflection->getFileName(),
+            'complexity' => 0, // calculated later
         ];
     }
 
@@ -185,6 +202,7 @@ class ModelParser
         foreach (class_uses_recursive($reflection->getName()) as $trait) {
             $traits[] = class_basename($trait);
         }
+
         return $traits;
     }
 
@@ -243,13 +261,16 @@ class ModelParser
         $accessors = [];
 
         foreach ($reflection->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
-            if ($method->class !== $reflection->getName()) continue;
+            if ($method->class !== $reflection->getName()) {
+                continue;
+            }
 
             $name = $method->getName();
 
             // Legacy: getFooAttribute
             if (preg_match('/^get(.+)Attribute$/', $name, $matches)) {
                 $accessors[] = Str::snake($matches[1]);
+
                 continue;
             }
 
@@ -273,7 +294,9 @@ class ModelParser
         $mutators = [];
 
         foreach ($reflection->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
-            if ($method->class !== $reflection->getName()) continue;
+            if ($method->class !== $reflection->getName()) {
+                continue;
+            }
 
             $name = $method->getName();
 
@@ -294,7 +317,9 @@ class ModelParser
         $scopes = [];
 
         foreach ($reflection->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
-            if ($method->class !== $reflection->getName()) continue;
+            if ($method->class !== $reflection->getName()) {
+                continue;
+            }
 
             if (preg_match('/^scope(.+)$/', $method->getName(), $matches)) {
                 $scopeName = lcfirst($matches[1]);
@@ -340,33 +365,49 @@ class ModelParser
         ];
 
         foreach ($reflection->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
-            if ($method->class !== $reflection->getName()) continue;
-            if ($method->isStatic()) continue;
+            if ($method->class !== $reflection->getName()) {
+                continue;
+            }
+            if ($method->isStatic()) {
+                continue;
+            }
 
             $name = $method->getName();
 
             // Skip magic methods
-            if (str_starts_with($name, '__')) continue;
+            if (str_starts_with($name, '__')) {
+                continue;
+            }
 
             // Skip accessors / mutators
-            if (preg_match('/^(get|set).+Attribute$/', $name)) continue;
+            if (preg_match('/^(get|set).+Attribute$/', $name)) {
+                continue;
+            }
 
             // Skip scopes
-            if (preg_match('/^scope[A-Z]/', $name)) continue;
+            if (preg_match('/^scope[A-Z]/', $name)) {
+                continue;
+            }
 
             // Skip relationship methods (already shown in Relations tab)
-            if (in_array($name, $relationshipNames)) continue;
+            if (in_array($name, $relationshipNames)) {
+                continue;
+            }
 
             // Skip new-style accessors (return Attribute)
             $rt = $method->getReturnType();
-            if ($rt instanceof ReflectionNamedType && $rt->getName() === 'Illuminate\Database\Eloquent\Casts\Attribute') continue;
+            if ($rt instanceof ReflectionNamedType && $rt->getName() === 'Illuminate\Database\Eloquent\Casts\Attribute') {
+                continue;
+            }
 
             // Skip known Laravel boilerplate
-            if (in_array($name, $exclude)) continue;
+            if (in_array($name, $exclude)) {
+                continue;
+            }
 
             $params = [];
             foreach ($method->getParameters() as $param) {
-                $p = '$' . $param->getName();
+                $p = '$'.$param->getName();
                 if ($param->isOptional()) {
                     $p .= ' = ...';
                 }
@@ -374,8 +415,8 @@ class ModelParser
             }
 
             $methods[] = [
-                'name'   => $name,
-                'params' => '(' . implode(', ', $params) . ')',
+                'name' => $name,
+                'params' => '('.implode(', ', $params).')',
             ];
         }
 
@@ -403,8 +444,12 @@ class ModelParser
         ];
 
         foreach ($reflection->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
-            if ($method->class !== $reflection->getName()) continue;
-            if ($method->getNumberOfRequiredParameters() > 0) continue;
+            if ($method->class !== $reflection->getName()) {
+                continue;
+            }
+            if ($method->getNumberOfRequiredParameters() > 0) {
+                continue;
+            }
 
             // Check return type hint first (only named types, not union/intersection)
             $returnType = $method->getReturnType();
@@ -416,6 +461,7 @@ class ModelParser
                         if ($relData) {
                             $relationships[$method->getName()] = $relData;
                         }
+
                         continue 2;
                     }
                 }
@@ -460,10 +506,11 @@ class ModelParser
         $relatedModel = null;
         try {
             $relatedModel = class_basename(get_class($relation->getRelated()));
-        } catch (Throwable $e) {}
+        } catch (Throwable $e) {
+        }
 
         $data = [
-            'type'  => $this->getRelationTypeName($type),
+            'type' => $this->getRelationTypeName($type),
             'model' => $relatedModel,
         ];
 
@@ -471,7 +518,8 @@ class ModelParser
         if ($relation instanceof Relations\BelongsToMany) {
             try {
                 $data['pivot'] = $relation->getTable();
-            } catch (Throwable $e) {}
+            } catch (Throwable $e) {
+            }
         }
 
         return $data;
@@ -483,13 +531,13 @@ class ModelParser
         $methodName = $method->getName();
 
         // Find the method body and extract the related model
-        if (preg_match('/function\s+' . $methodName . '\s*\([^)]*\)[^{]*\{([^}]+)\}/s', $source, $matches)) {
+        if (preg_match('/function\s+'.$methodName.'\s*\([^)]*\)[^{]*\{([^}]+)\}/s', $source, $matches)) {
             $body = $matches[1];
 
             // Look for Model::class references
             if (preg_match('/([A-Z][A-Za-z]+)::class/', $body, $modelMatch)) {
                 return [
-                    'type'  => $this->getRelationTypeName($type),
+                    'type' => $this->getRelationTypeName($type),
                     'model' => $modelMatch[1],
                 ];
             }
@@ -501,16 +549,16 @@ class ModelParser
     protected function getRelationTypeName(string $class): string
     {
         return match ($class) {
-            Relations\HasOne::class         => 'hasOne',
-            Relations\HasMany::class        => 'hasMany',
-            Relations\BelongsTo::class      => 'belongsTo',
-            Relations\BelongsToMany::class  => 'belongsToMany',
-            Relations\MorphOne::class       => 'morphOne',
-            Relations\MorphMany::class      => 'morphMany',
-            Relations\MorphTo::class        => 'morphTo',
-            Relations\MorphToMany::class    => 'morphToMany',
-            Relations\MorphedByMany::class  => 'morphedByMany',
-            Relations\HasOneThrough::class  => 'hasOneThrough',
+            Relations\HasOne::class => 'hasOne',
+            Relations\HasMany::class => 'hasMany',
+            Relations\BelongsTo::class => 'belongsTo',
+            Relations\BelongsToMany::class => 'belongsToMany',
+            Relations\MorphOne::class => 'morphOne',
+            Relations\MorphMany::class => 'morphMany',
+            Relations\MorphTo::class => 'morphTo',
+            Relations\MorphToMany::class => 'morphToMany',
+            Relations\MorphedByMany::class => 'morphedByMany',
+            Relations\HasOneThrough::class => 'hasOneThrough',
             Relations\HasManyThrough::class => 'hasManyThrough',
             default => class_basename($class),
         };
@@ -535,8 +583,8 @@ class ModelParser
         $eventMethods = ['creating', 'created', 'updating', 'updated', 'deleting', 'deleted', 'saving', 'saved', 'restoring', 'restored'];
 
         foreach ($eventMethods as $event) {
-            if (preg_match('/static::' . $event . '\s*\(/', $source)) {
-                $observers[] = $event . ' (inline)';
+            if (preg_match('/static::'.$event.'\s*\(/', $source)) {
+                $observers[] = $event.' (inline)';
             }
         }
 
@@ -550,7 +598,7 @@ class ModelParser
     {
         $policies = [];
         $modelName = class_basename($modelClass);
-        $policyClass = str_replace('Models\\' . $modelName, 'Policies\\' . $modelName . 'Policy', $modelClass);
+        $policyClass = str_replace('Models\\'.$modelName, 'Policies\\'.$modelName.'Policy', $modelClass);
 
         if (class_exists($policyClass)) {
             $policies[] = class_basename($policyClass);
@@ -573,14 +621,14 @@ class ModelParser
         ));
 
         // Always include 'id' if not already present
-        if (!in_array('id', $columns)) {
+        if (! in_array('id', $columns)) {
             array_unshift($columns, 'id');
         }
 
         // Add timestamp columns if the model uses them
         if ($model->usesTimestamps()) {
             foreach (['created_at', 'updated_at'] as $ts) {
-                if (!in_array($ts, $columns)) {
+                if (! in_array($ts, $columns)) {
                     $columns[] = $ts;
                 }
             }
@@ -588,7 +636,7 @@ class ModelParser
 
         // Add soft delete column if applicable
         if (in_array(SoftDeletes::class, class_uses_recursive($model))) {
-            if (!in_array('deleted_at', $columns)) {
+            if (! in_array('deleted_at', $columns)) {
                 $columns[] = 'deleted_at';
             }
         }

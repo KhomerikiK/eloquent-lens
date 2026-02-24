@@ -2,9 +2,8 @@
 
 namespace EloquentLens\Http\Controllers;
 
-use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
 use EloquentLens\Services\ModelParser;
+use Illuminate\Routing\Controller;
 
 class DashboardController extends Controller
 {

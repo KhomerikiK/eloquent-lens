@@ -7,6 +7,7 @@ use Livewire\Component;
 class ModelDetail extends Component
 {
     public string $modelName = '';
+
     public array $modelData = [];
 
     public function mount(string $modelName, array $modelData)
