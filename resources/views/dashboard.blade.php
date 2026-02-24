@@ -190,8 +190,8 @@
                                 }"
                                 :style="positions[name] ? 'left:' + positions[name].x + 'px; top:' + positions[name].y + 'px' : ''"
                                 @click.stop="toggleSelect(name)"
-                                @mouseenter="hoveredModel = name"
-                                @mouseleave="hoveredModel = null"
+                                @mouseenter="if (!selectedModel) hoveredModel = name"
+                                @mouseleave="if (!selectedModel) hoveredModel = null"
                                 @mousedown.stop="startDrag($event, name)"
                             >
                                 {{-- Header --}}
