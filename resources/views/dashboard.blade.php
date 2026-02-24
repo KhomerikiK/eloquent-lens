@@ -160,29 +160,22 @@
                     >
                         <div class="grid-bg"></div>
 
-                        {{-- SVG Edge Lines --}}
+                        {{-- SVG Edge Lines (no <template> inside SVG — browsers don't support it) --}}
                         <svg class="edge-svg" :viewBox="'0 0 ' + canvasSize.w + ' ' + canvasSize.h" :style="'width:' + canvasSize.w + 'px; height:' + canvasSize.h + 'px;'">
-                            {{-- Arrow markers --}}
                             <defs>
-                                <template x-for="(color, type) in relColors" :key="'marker-'+type">
-                                    <marker :id="'arrow-'+type" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto">
-                                        <path d="M0,0 L10,3 L0,6 Z" :fill="color" />
-                                    </marker>
-                                </template>
+                                <marker id="arrow-hasMany" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto"><path d="M0,0 L10,3 L0,6 Z" fill="#f97316" /></marker>
+                                <marker id="arrow-hasOne" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto"><path d="M0,0 L10,3 L0,6 Z" fill="#22c55e" /></marker>
+                                <marker id="arrow-belongsTo" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto"><path d="M0,0 L10,3 L0,6 Z" fill="#3b82f6" /></marker>
+                                <marker id="arrow-belongsToMany" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto"><path d="M0,0 L10,3 L0,6 Z" fill="#a855f7" /></marker>
+                                <marker id="arrow-morphMany" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto"><path d="M0,0 L10,3 L0,6 Z" fill="#ec4899" /></marker>
+                                <marker id="arrow-morphOne" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto"><path d="M0,0 L10,3 L0,6 Z" fill="#ec4899" /></marker>
+                                <marker id="arrow-morphTo" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto"><path d="M0,0 L10,3 L0,6 Z" fill="#ec4899" /></marker>
+                                <marker id="arrow-morphToMany" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto"><path d="M0,0 L10,3 L0,6 Z" fill="#ec4899" /></marker>
+                                <marker id="arrow-morphedByMany" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto"><path d="M0,0 L10,3 L0,6 Z" fill="#ec4899" /></marker>
+                                <marker id="arrow-hasOneThrough" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto"><path d="M0,0 L10,3 L0,6 Z" fill="#06b6d4" /></marker>
+                                <marker id="arrow-hasManyThrough" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto"><path d="M0,0 L10,3 L0,6 Z" fill="#06b6d4" /></marker>
                             </defs>
-
-                            <template x-for="edge in edges" :key="edge.key">
-                                <path
-                                    :d="edge.path"
-                                    fill="none"
-                                    :stroke="edge.color"
-                                    :stroke-width="edge.isActive ? 2.5 : 1.5"
-                                    :stroke-dasharray="edge.isDashed ? '6 4' : 'none'"
-                                    :opacity="edge.opacity"
-                                    :marker-end="'url(#arrow-' + edge.type + ')'"
-                                    style="transition: opacity 0.3s ease"
-                                />
-                            </template>
+                            <g x-html="edgeSvgHtml"></g>
                         </svg>
 
                         {{-- Entity Cards (ERD) --}}
@@ -812,6 +805,12 @@ function eloquentLens(apiUrl) {
             });
 
             return result;
+        },
+
+        get edgeSvgHtml() {
+            return this.edges.map(e =>
+                `<path d="${e.path}" fill="none" stroke="${e.color}" stroke-width="${e.isActive ? 2.5 : 1.5}" stroke-dasharray="${e.isDashed ? '6 4' : 'none'}" opacity="${e.opacity}" marker-end="url(#arrow-${e.type})" style="transition:opacity .3s ease"/>`
+            ).join('');
         },
 
         get selectedModelData() {
