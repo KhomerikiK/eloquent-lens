@@ -9,8 +9,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-    {{-- Livewire (bundles Alpine.js) --}}
-    @livewireStyles
+    {{-- Alpine.js --}}
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
 
     <style>
         /* ═══════════════════════════════════════════════════════════
@@ -1149,6 +1149,5 @@
 <body>
     @yield('content')
 
-    @livewireScripts
 </body>
 </html>
