@@ -50,6 +50,7 @@
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        [x-cloak] { display: none !important; }
 
         body {
             font-family: var(--mono);
@@ -57,6 +58,126 @@
             color: var(--text-primary);
             overflow: hidden;
             height: 100vh;
+        }
+
+        /* ── Loading Screen ─────────────────────────────────────── */
+        .lens-loader {
+            position: fixed;
+            inset: 0;
+            background: var(--bg-primary);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .lens-loader-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            animation: loaderFadeIn 0.3s ease;
+        }
+
+        @keyframes loaderFadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .lens-loader-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 16px;
+            background: linear-gradient(135deg, var(--accent), #a855f7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--mono);
+            position: relative;
+        }
+
+        .lens-loader-icon-text {
+            font-size: 24px;
+            font-weight: 800;
+            color: white;
+            z-index: 1;
+        }
+
+        .lens-loader-ring {
+            position: absolute;
+            inset: -6px;
+            border: 2px solid transparent;
+            border-top-color: var(--accent);
+            border-right-color: rgba(124, 58, 237, 0.3);
+            border-radius: 20px;
+            animation: spin 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .lens-loader-text {
+            font-family: var(--mono);
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: -0.03em;
+        }
+
+        .lens-loader-text span { color: var(--accent); }
+
+        .lens-loader-steps {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            min-width: 280px;
+        }
+
+        .lens-loader-step {
+            font-family: var(--mono);
+            font-size: 11px;
+            color: var(--text-dim);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 0;
+            transition: color 0.2s;
+        }
+
+        .lens-loader-step.active {
+            color: var(--text-primary);
+        }
+
+        .lens-loader-step.done {
+            color: var(--success);
+        }
+
+        .lens-loader-step-icon {
+            width: 14px;
+            text-align: center;
+            flex-shrink: 0;
+            font-weight: 700;
+        }
+
+        .lens-loader-step.active .lens-loader-step-icon {
+            animation: pulse 0.8s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .lens-loader-tip {
+            font-family: var(--mono);
+            font-size: 10px;
+            color: var(--text-dim);
+            font-style: italic;
+            max-width: 320px;
+            text-align: center;
+            line-height: 1.5;
+            margin-top: 8px;
         }
 
         /* Scrollbar */
@@ -241,7 +362,12 @@
             color: var(--text-muted);
         }
 
-        .btn-ghost:hover {
+        .btn-ghost:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .btn-ghost:hover:not(:disabled) {
             border-color: var(--border-hover);
             color: var(--text-secondary);
         }

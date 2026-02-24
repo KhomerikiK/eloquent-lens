@@ -2,9 +2,32 @@
 
 @section('content')
 <div
-    x-data="eloquentLens(@js($models))"
+    x-data="eloquentLens('{{ $apiUrl }}')"
     style="height: 100vh; display: flex; flex-direction: column; overflow: hidden;"
 >
+    {{-- Loading overlay --}}
+    <template x-if="loading">
+        <div class="lens-loader">
+            <div class="lens-loader-content">
+                <div class="lens-loader-icon">
+                    <span class="lens-loader-icon-text">E</span>
+                    <div class="lens-loader-ring"></div>
+                </div>
+                <div class="lens-loader-text">Eloquent<span>Lens</span></div>
+
+                <div class="lens-loader-steps">
+                    <template x-for="(step, i) in loadingSteps" :key="i">
+                        <div class="lens-loader-step" :class="{ 'done': step.done, 'active': step.active }">
+                            <span class="lens-loader-step-icon" x-text="step.done ? '✓' : step.active ? '›' : '·'"></span>
+                            <span x-text="step.label"></span>
+                        </div>
+                    </template>
+                </div>
+
+                <div class="lens-loader-tip" x-text="loadingTip"></div>
+            </div>
+        </div>
+    </template>
     {{-- ═══ Top Navigation Bar ═══ --}}
     <header class="topbar">
         <div class="topbar-left">
@@ -55,6 +78,11 @@
             {{-- Path Finder --}}
             <button class="btn btn-accent" @click="showPathFinder = true">
                 ⇢ Path Finder
+            </button>
+
+            {{-- Refresh Models --}}
+            <button class="btn btn-ghost" @click="refreshModels()" :disabled="loading">
+                ⟳ Refresh
             </button>
 
             {{-- Reset Layout --}}
@@ -160,13 +188,14 @@
                         {{-- Entity Cards (ERD) --}}
                         <template x-for="(model, name) in filteredModels" :key="name">
                             <div
+                                x-show="positions[name]"
                                 class="entity-card"
                                 :class="{
                                     'selected': selectedModel === name,
                                     'dimmed': isDimmed(name),
                                     'dragging': dragging === name
                                 }"
-                                :style="'left:' + positions[name].x + 'px; top:' + positions[name].y + 'px'"
+                                :style="positions[name] ? 'left:' + positions[name].x + 'px; top:' + positions[name].y + 'px' : ''"
                                 @click.stop="toggleSelect(name)"
                                 @mouseenter="hoveredModel = name"
                                 @mouseleave="hoveredModel = null"
@@ -199,7 +228,7 @@
                                         </div>
                                     </template>
                                     <template x-if="!model.columns || !model.columns.length">
-                                        <div class="entity-empty">No columns detected</div>
+                                        <div class="entity-empty">No properties detected</div>
                                     </template>
                                 </div>
 
@@ -247,9 +276,10 @@
 </div>
 
 <script>
-function eloquentLens(modelsData) {
+function eloquentLens(apiUrl) {
     return {
-        allModels: modelsData,
+        apiUrl: apiUrl,
+        allModels: {},
         positions: {},
         selectedModel: null,
         hoveredModel: null,
@@ -261,6 +291,9 @@ function eloquentLens(modelsData) {
         dragOffset: { x: 0, y: 0 },
         zoom: 1,
         sidebarFilter: '',
+        loading: true,
+        loadingSteps: [],
+        loadingTip: '',
 
         // Path finder
         pathFrom: '',
@@ -304,8 +337,82 @@ function eloquentLens(modelsData) {
             through:        { color: '#06b6d4', label: 'through', dashed: false },
         },
 
-        init() {
-            this.generatePositions();
+        async init() {
+            await this.fetchModels();
+        },
+
+        async fetchModels() {
+            const tips = [
+                'Eloquent models are like onions — they have layers.',
+                'Fun fact: the average Laravel app has 12 models.',
+                'Relationships are complicated... even in databases.',
+                'Every belongsTo deserves a hasMany in return.',
+                'Your models called — they want to be visualized.',
+                'Polymorphic relations: because one type is never enough.',
+                'N+1 queries hate this one weird trick.',
+                'Behind every great app is a well-structured schema.',
+            ];
+            this.loadingTip = tips[Math.floor(Math.random() * tips.length)];
+            this.loading = true;
+            this.loadingSteps = [
+                { label: 'Discovering model files...', done: false, active: true },
+                { label: 'Parsing relationships & columns...', done: false, active: false },
+                { label: 'Mapping the graph...', done: false, active: false },
+                { label: 'Arranging layout...', done: false, active: false },
+            ];
+
+            try {
+                // Step 1 → 2: fetch from API (server does discovery + parsing)
+                await this.$nextTick();
+                const res = await fetch(this.apiUrl);
+                if (!res.ok) throw new Error('Failed to fetch');
+
+                this.loadingSteps[0] = { ...this.loadingSteps[0], done: true, active: false };
+                this.loadingSteps[1] = { ...this.loadingSteps[1], active: true };
+                await this.$nextTick();
+
+                this.allModels = await res.json();
+                const count = Object.keys(this.allModels).length;
+                const rels = Object.values(this.allModels).reduce((s, m) => s + Object.keys(m.relationships).length, 0);
+
+                this.loadingSteps[1] = { label: `Parsed ${count} models, ${rels} relationships`, done: true, active: false };
+                this.loadingSteps[2] = { ...this.loadingSteps[2], active: true };
+                await this.$nextTick();
+
+                // Step 3: Build adjacency graph (instant, but show it)
+                await new Promise(r => setTimeout(r, 120));
+
+                this.loadingSteps[2] = { ...this.loadingSteps[2], done: true, active: false };
+                this.loadingSteps[3] = { ...this.loadingSteps[3], active: true };
+                await this.$nextTick();
+
+                // Step 4: Generate positions
+                this.positions = {};
+                this.generatePositions();
+
+                this.loadingSteps[3] = { label: 'Layout ready — enjoy!', done: true, active: false };
+                await new Promise(r => setTimeout(r, 300));
+
+            } catch (e) {
+                this.loadingSteps = this.loadingSteps.map(s => s.active ? { ...s, label: 'Error: ' + e.message, active: false } : s);
+                this.loadingTip = 'Something went wrong. Check the console.';
+                console.error('EloquentLens:', e);
+                await new Promise(r => setTimeout(r, 2000));
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async refreshModels() {
+            this.selectedModel = null;
+            await this.fetchModels();
+            this.zoom = 1;
+            this.$nextTick(() => {
+                if (this.$refs.canvas) {
+                    this.$refs.canvas.scrollTop = 0;
+                    this.$refs.canvas.scrollLeft = 0;
+                }
+            });
         },
 
         generatePositions() {

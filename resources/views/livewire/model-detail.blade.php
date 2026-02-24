@@ -134,13 +134,13 @@
                     </template>
                 </div>
 
-                {{-- Columns --}}
-                <template x-if="selectedModelData.columns && selectedModelData.columns.length > 0">
+                {{-- Fillable Properties --}}
+                <template x-if="selectedModelData.fillable && selectedModelData.fillable.length > 0">
                     <div class="section">
-                        <div class="section-title">Database Columns</div>
+                        <div class="section-title">Fillable Properties</div>
                         <div class="tag-list">
-                            <template x-for="col in selectedModelData.columns" :key="col">
-                                <span class="tag" style="color:#94a3b8;background:rgba(148,163,184,0.06);border-color:rgba(148,163,184,0.12)" x-text="col"></span>
+                            <template x-for="field in selectedModelData.fillable" :key="field">
+                                <span class="tag" style="color:#22c55e;background:rgba(34,197,94,0.06);border-color:rgba(34,197,94,0.12)" x-text="field"></span>
                             </template>
                         </div>
                     </div>

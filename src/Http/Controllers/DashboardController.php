@@ -14,10 +14,8 @@ class DashboardController extends Controller
 
     public function index()
     {
-        $models = $this->parser->parse();
-
         return view('eloquent-lens::dashboard', [
-            'models' => $models,
+            'apiUrl' => route('eloquent-lens.api.models'),
         ]);
     }
 

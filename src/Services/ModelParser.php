@@ -6,7 +6,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use ReflectionClass;
 use ReflectionMethod;
@@ -165,8 +164,8 @@ class ModelParser
             'methods'       => $safe(fn () => $this->getCustomMethods($reflection, array_keys($relationships))),
             'observers'     => $safe(fn () => $this->getObservers($reflection)),
             'policies'      => $safe(fn () => $this->getPolicies($class)),
-            'columns'       => $safe(fn () => $this->getColumns($instance)),
-            'indexes'       => $safe(fn () => $this->getIndexes($instance)),
+            'columns'       => $safe(fn () => $this->getColumnsFromModel($instance)),
+            'indexes'       => [],
             'hasTimestamps' => $safe(fn () => $instance->usesTimestamps(), false),
             'hasSoftDeletes'=> in_array(SoftDeletes::class, class_uses_recursive($class)),
             'linesOfCode'   => $safe(fn () => $this->countLines($reflection), 0),
@@ -207,7 +206,30 @@ class ModelParser
     protected function getCasts(Model $model): array
     {
         try {
-            return $model->getCasts();
+            $casts = [];
+
+            // Read the $casts property directly via reflection
+            // This gives us only what the developer explicitly defined,
+            // without Laravel's auto-injected key type (e.g. id => int)
+            $ref = new ReflectionClass($model);
+            if ($ref->hasProperty('casts')) {
+                $prop = $ref->getProperty('casts');
+                $prop->setAccessible(true);
+                $casts = $prop->getValue($model) ?: [];
+            }
+
+            // Also check for Laravel 11+ casts() method defined on the model itself
+            if (method_exists($model, 'casts')) {
+                $method = new ReflectionMethod($model, 'casts');
+                if ($method->class === get_class($model)) {
+                    $methodCasts = $model->casts();
+                    if (is_array($methodCasts)) {
+                        $casts = array_merge($casts, $methodCasts);
+                    }
+                }
+            }
+
+            return $casts;
         } catch (Throwable $e) {
             return [];
         }
@@ -538,35 +560,40 @@ class ModelParser
     }
 
     /**
-     * Get database columns for the model's table.
+     * Get columns from model properties (no DB queries).
+     * Merges fillable, guarded, hidden, and cast keys for a complete picture.
      */
-    protected function getColumns(Model $model): array
+    protected function getColumnsFromModel(Model $model): array
     {
-        try {
-            $table = $model->getTable();
+        $columns = array_unique(array_merge(
+            $model->getFillable(),
+            $model->getGuarded() !== ['*'] ? $model->getGuarded() : [],
+            $model->getHidden(),
+            array_keys($this->getCasts($model)),
+        ));
 
-            if (Schema::hasTable($table)) {
-                return Schema::getColumnListing($table);
+        // Always include 'id' if not already present
+        if (!in_array('id', $columns)) {
+            array_unshift($columns, 'id');
+        }
+
+        // Add timestamp columns if the model uses them
+        if ($model->usesTimestamps()) {
+            foreach (['created_at', 'updated_at'] as $ts) {
+                if (!in_array($ts, $columns)) {
+                    $columns[] = $ts;
+                }
             }
-        } catch (Throwable $e) {}
+        }
 
-        return [];
-    }
-
-    /**
-     * Get indexes for the model's table.
-     */
-    protected function getIndexes(Model $model): array
-    {
-        try {
-            $table = $model->getTable();
-
-            if (Schema::hasTable($table) && method_exists(Schema::class, 'getIndexes')) {
-                return Schema::getIndexes($table);
+        // Add soft delete column if applicable
+        if (in_array(SoftDeletes::class, class_uses_recursive($model))) {
+            if (!in_array('deleted_at', $columns)) {
+                $columns[] = 'deleted_at';
             }
-        } catch (Throwable $e) {}
+        }
 
-        return [];
+        return $columns;
     }
 
     /**
