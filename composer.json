@@ -1,7 +1,7 @@
 {
     "name": "khomerikik/eloquent-lens",
-    "description": "A Horizon-like dashboard that visualizes your Eloquent models, relationships, scopes, observers, and more.",
-    "keywords": ["laravel", "eloquent", "visualizer", "models", "relationships", "dashboard"],
+    "description": "Visual dashboard for Laravel Eloquent models — see relationships, scopes, casts, policies, and complexity at a glance. No database queries.",
+    "keywords": ["laravel", "eloquent", "models", "relationships", "visualizer", "erd", "diagram", "dashboard", "dev-tools", "schema", "scopes", "observers", "architecture"],
     "license": "MIT",
     "type": "library",
     "require": {
