@@ -12,6 +12,9 @@
     {{-- Alpine.js --}}
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
 
+    {{-- Dagre (hierarchical layout engine, ~40KB) --}}
+    <script src="https://cdn.jsdelivr.net/npm/dagre@0.8.5/dist/dagre.min.js"></script>
+
     <style>
         /* ═══════════════════════════════════════════════════════════
            EloquentLens — Dark Dashboard Theme
@@ -382,6 +385,43 @@
             color: var(--text-secondary);
         }
 
+        .btn-active {
+            background: var(--accent-bg);
+            border-color: var(--accent-border);
+            color: var(--accent-light);
+        }
+
+        /* ── Segmented Control ────────────────────────────────── */
+        .seg-control {
+            display: inline-flex;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 2px;
+            height: 34px;
+        }
+
+        .seg-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 11px;
+            font-weight: 600;
+            font-family: var(--mono);
+            padding: 0 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .seg-btn:hover { color: var(--text-secondary); }
+
+        .seg-btn.active {
+            background: var(--accent-bg);
+            color: var(--accent-light);
+            box-shadow: 0 0 0 1px var(--accent-border);
+        }
+
         /* ── Legend Bar ────────────────────────────────────────── */
         .legend-bar {
             min-height: 36px;
@@ -563,6 +603,81 @@
         .graph-zoom-layer {
             position: relative;
             transform-origin: 0 0;
+        }
+
+        /* ── Mini-map ───────────────────────────────────────── */
+        .minimap {
+            position: absolute;
+            top: 14px;
+            right: 14px;
+            width: 220px;
+            height: 150px;
+            background: rgba(13, 13, 20, 0.9);
+            backdrop-filter: blur(6px);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            z-index: 25;
+            overflow: hidden;
+            cursor: crosshair;
+            user-select: none;
+        }
+
+        .minimap-svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .minimap-close {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            z-index: 2;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 14px;
+            cursor: pointer;
+            width: 18px;
+            height: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 3px;
+            line-height: 1;
+        }
+
+        .minimap-close:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .minimap-show-btn {
+            position: absolute;
+            top: 14px;
+            right: 14px;
+            z-index: 25;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-muted);
+            cursor: pointer;
+            width: 28px;
+            height: 28px;
+            font-family: var(--mono);
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .minimap-show-btn:hover {
+            color: var(--text-primary);
+            border-color: var(--border-hover);
+        }
+
+        @media (max-width: 900px) {
+            .minimap, .minimap-show-btn { display: none !important; }
         }
 
         /* ── Zoom Controls ───────────────────────────────────── */

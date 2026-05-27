@@ -84,6 +84,35 @@
                 <option value="hasOneThrough">*Through</option>
             </select>
 
+            {{-- Layout Mode --}}
+            <div class="seg-control" role="group" aria-label="Layout mode">
+                <button
+                    class="seg-btn"
+                    :class="{ 'active': layoutMode === 'force' }"
+                    @click="layoutMode = 'force'"
+                    title="Force-directed layout"
+                >Force</button>
+                <button
+                    class="seg-btn"
+                    :class="{ 'active': layoutMode === 'dagre' }"
+                    @click="layoutMode = 'dagre'"
+                    title="Hierarchical layout (better for large graphs)"
+                >Hierarchy</button>
+            </div>
+
+            {{-- Focus Mode (cycles off → 1 → 2 → 3 → off) --}}
+            <button
+                class="btn btn-ghost"
+                :class="{ 'btn-active': focusMode }"
+                @click="cycleFocus()"
+                :title="focusMode
+                    ? 'Showing ' + focusHops + '-hop neighborhood around selection — click to ' + (focusHops < 3 ? 'expand' : 'turn off')
+                    : 'Focus mode: show only selected model + neighbors. Requires a selection.'"
+            >
+                <span x-text="focusMode ? '◉' : '◎'"></span>
+                Focus<span x-show="focusMode" style="opacity:0.6;margin-left:4px;" x-text="focusHops + 'h'"></span>
+            </button>
+
             {{-- Path Finder --}}
             <button class="btn btn-accent" @click="showPathFinder = true">
                 ⇢ Path Finder
@@ -161,6 +190,7 @@
                 @mousemove.window="onMouseMove($event)"
                 @mouseup.window="onMouseUp()"
                 @wheel="onWheel($event)"
+                @scroll="updateViewportRect()"
             >
                 <div
                     class="graph-canvas-inner"
@@ -261,6 +291,60 @@
                 </div>
             </div>
 
+            {{-- Mini-map --}}
+            <div
+                class="minimap"
+                x-show="showMiniMap && Object.keys(positions).length > 1"
+                @mousedown="onMinimapMouseDown($event)"
+                @mousemove="onMinimapMouseMove($event)"
+                @mouseup.window="draggingMinimap = false"
+            >
+                <button
+                    class="minimap-close"
+                    @click.stop="showMiniMap = false"
+                    title="Hide mini-map"
+                    aria-label="Hide mini-map"
+                >×</button>
+                <svg
+                    class="minimap-svg"
+                    :viewBox="'0 0 ' + canvasSize.w + ' ' + canvasSize.h"
+                    preserveAspectRatio="xMidYMid meet"
+                >
+                    {{-- Cards as small rects --}}
+                    <template x-for="(pos, name) in positions" :key="'mm-'+name">
+                        <rect
+                            :x="pos.x"
+                            :y="pos.y"
+                            width="260"
+                            :height="getCardHeight(name)"
+                            :fill="selectedModel === name ? 'var(--accent)' : complexityColor(allModels[name] ? allModels[name].complexity : 0)"
+                            :opacity="focusedModels && !focusedModels.has(name) ? 0.15 : 0.7"
+                            rx="20"
+                        />
+                    </template>
+
+                    {{-- Viewport rectangle --}}
+                    <rect
+                        :x="viewportRect.x"
+                        :y="viewportRect.y"
+                        :width="viewportRect.w"
+                        :height="viewportRect.h"
+                        fill="rgba(124, 58, 237, 0.12)"
+                        stroke="var(--accent)"
+                        stroke-width="40"
+                        vector-effect="non-scaling-stroke"
+                    />
+                </svg>
+            </div>
+
+            <button
+                x-show="!showMiniMap"
+                class="minimap-show-btn"
+                @click="showMiniMap = true; $nextTick(() => updateViewportRect())"
+                title="Show mini-map"
+                aria-label="Show mini-map"
+            >▢</button>
+
             {{-- Zoom Controls --}}
             <div class="zoom-controls">
                 <button class="zoom-btn" @click="zoomOut()" title="Zoom out" aria-label="Zoom out">−</button>
@@ -295,6 +379,8 @@
                         ['Cmd K',  'Focus search (anywhere)'],
                         ['F',      'Fit graph to viewport'],
                         ['R',      'Reset layout'],
+                        ['L',      'Toggle Force / Hierarchy layout'],
+                        ['N',      'Cycle focus mode (1h → 2h → 3h → off)'],
                         ['P',      'Toggle Path Finder'],
                         ['Esc',    'Close panel / modal'],
                         ['?',      'Show this list'],
@@ -329,6 +415,12 @@ function eloquentLens(apiUrl) {
         sidebarOpen: false,
         showShortcuts: false,
         loading: true,
+        layoutMode: 'force',     // 'force' | 'dagre'
+        focusMode: false,
+        focusHops: 1,
+        showMiniMap: true,
+        viewportRect: { x: 0, y: 0, w: 0, h: 0 },
+        draggingMinimap: false,
         loadingSteps: [],
         loadingTip: '',
 
@@ -380,6 +472,19 @@ function eloquentLens(apiUrl) {
             this.applyUrlState();
             this.watchPersistedState();
             window.addEventListener('hashchange', () => this.applyUrlState());
+            this.$nextTick(() => this.updateViewportRect());
+            window.addEventListener('resize', () => this.updateViewportRect());
+        },
+
+        updateViewportRect() {
+            const c = this.$refs.canvas;
+            if (!c) return;
+            this.viewportRect = {
+                x: c.scrollLeft / this.zoom,
+                y: c.scrollTop / this.zoom,
+                w: c.clientWidth / this.zoom,
+                h: c.clientHeight / this.zoom,
+            };
         },
 
         get storageKey() {
@@ -396,6 +501,9 @@ function eloquentLens(apiUrl) {
                 if (typeof s.searchQuery === 'string') this.searchQuery = s.searchQuery;
                 if (typeof s.relFilter === 'string') this.relFilter = s.relFilter;
                 if (typeof s.selectedModel === 'string') this.selectedModel = s.selectedModel;
+                if (s.layoutMode === 'force' || s.layoutMode === 'dagre') this.layoutMode = s.layoutMode;
+                if (typeof s.focusMode === 'boolean') this.focusMode = s.focusMode;
+                if (typeof s.focusHops === 'number') this.focusHops = Math.max(1, Math.min(4, s.focusHops));
             } catch (e) {
                 console.warn('EloquentLens: failed to load stored state', e);
             }
@@ -412,6 +520,9 @@ function eloquentLens(apiUrl) {
                         searchQuery: this.searchQuery,
                         relFilter: this.relFilter,
                         selectedModel: this.selectedModel,
+                        layoutMode: this.layoutMode,
+                        focusMode: this.focusMode,
+                        focusHops: this.focusHops,
                     }));
                 } catch (e) {
                     console.warn('EloquentLens: failed to save state', e);
@@ -432,6 +543,10 @@ function eloquentLens(apiUrl) {
             this.$watch('showPathFinder', () => this.syncUrl());
             this.$watch('pathFrom', () => this.syncUrl());
             this.$watch('pathTo', () => this.syncUrl());
+            this.$watch('focusMode', () => this.saveStored());
+            this.$watch('focusHops', () => this.saveStored());
+            this.$watch('layoutMode', () => { this.saveStored(); this.relayout(); });
+            this.$watch('zoom', () => this.updateViewportRect());
         },
 
         // ── URL state (deep links) ──
@@ -518,6 +633,10 @@ function eloquentLens(apiUrl) {
                     this.positions = kept;
                     this.loadingSteps[3] = { label: 'Restored saved layout', done: true, active: false };
                 } else {
+                    // Auto-pick dagre for large graphs on first visit
+                    if (!localStorage.getItem(this.storageKey) && names.length > 30 && typeof dagre !== 'undefined') {
+                        this.layoutMode = 'dagre';
+                    }
                     this.positions = {};
                     this.generatePositions();
                     this.loadingSteps[3] = { label: 'Layout ready — enjoy!', done: true, active: false };
@@ -539,7 +658,68 @@ function eloquentLens(apiUrl) {
             await this.fetchModels();
         },
 
+        relayout() {
+            this.positions = {};
+            this.generatePositions();
+            this.$nextTick(() => this.fitToView());
+        },
+
         generatePositions() {
+            if (this.layoutMode === 'dagre' && typeof dagre !== 'undefined') {
+                this.generateDagrePositions();
+                return;
+            }
+            this.generateForcePositions();
+        },
+
+        generateDagrePositions() {
+            const models = this.allModels;
+            const names = Object.keys(models);
+            if (names.length === 0) return;
+
+            const cardW = 260;
+            const cardHeights = {};
+            names.forEach(n => { cardHeights[n] = this.getCardHeight(n); });
+
+            // Build dagre graph
+            const g = new dagre.graphlib.Graph();
+            g.setGraph({ rankdir: 'LR', nodesep: 40, ranksep: 100, marginx: 60, marginy: 60 });
+            g.setDefaultEdgeLabel(() => ({}));
+
+            names.forEach(n => g.setNode(n, { width: cardW, height: cardHeights[n] }));
+
+            // Add edges, dedupe so the layout isn't biased by parallel edges
+            const seenEdges = new Set();
+            names.forEach(name => {
+                Object.values(models[name].relationships).forEach(rel => {
+                    if (!rel.model || !models[rel.model]) return;
+                    const key = name + '→' + rel.model;
+                    if (seenEdges.has(key)) return;
+                    seenEdges.add(key);
+                    g.setEdge(name, rel.model);
+                });
+            });
+
+            dagre.layout(g);
+
+            // Translate dagre's center-based coords into top-left positions
+            const finalPos = {};
+            names.forEach(n => {
+                const node = g.node(n);
+                if (!node) {
+                    finalPos[n] = { x: 80, y: 80 };
+                    return;
+                }
+                finalPos[n] = {
+                    x: node.x - cardW / 2,
+                    y: node.y - cardHeights[n] / 2,
+                };
+            });
+
+            this.positions = finalPos;
+        },
+
+        generateForcePositions() {
             const models = this.allModels;
             const names = Object.keys(models);
             if (names.length === 0) return;
@@ -845,34 +1025,59 @@ function eloquentLens(apiUrl) {
         },
 
         get filteredModels() {
-            if (!this.searchQuery) return this.allModels;
-            const q = this.searchQuery.toLowerCase();
+            const focus = this.focusedModels;
+            const q = this.searchQuery ? this.searchQuery.toLowerCase() : null;
+
+            if (!focus && !q) return this.allModels;
+
             const result = {};
             Object.entries(this.allModels).forEach(([name, model]) => {
-                if (name.toLowerCase().includes(q)) {
-                    result[name] = model;
-                }
+                if (focus && !focus.has(name)) return;
+                if (q && !name.toLowerCase().includes(q)) return;
+                result[name] = model;
             });
             return result;
         },
 
         get connectedModels() {
+            return this.neighborhood(1);
+        },
+
+        get focusedModels() {
+            if (!this.focusMode || !this.selectedModel) return null;
+            return this.neighborhood(this.focusHops);
+        },
+
+        neighborhood(hops) {
             if (!this.selectedModel || !this.allModels[this.selectedModel]) return null;
-            const connected = new Set([this.selectedModel]);
 
-            // Direct relationships from selected model
-            Object.values(this.allModels[this.selectedModel].relationships).forEach(rel => {
-                if (rel.model) connected.add(rel.model);
-            });
-
-            // Models that reference selected model
+            // Build undirected adjacency lazily
+            const adj = {};
             Object.entries(this.allModels).forEach(([name, model]) => {
+                if (!adj[name]) adj[name] = new Set();
                 Object.values(model.relationships).forEach(rel => {
-                    if (rel.model === this.selectedModel) connected.add(name);
+                    if (!rel.model || !this.allModels[rel.model]) return;
+                    adj[name].add(rel.model);
+                    if (!adj[rel.model]) adj[rel.model] = new Set();
+                    adj[rel.model].add(name);
                 });
             });
 
-            return connected;
+            const visited = new Set([this.selectedModel]);
+            let frontier = [this.selectedModel];
+            for (let h = 0; h < hops && frontier.length; h++) {
+                const next = [];
+                frontier.forEach(n => {
+                    (adj[n] || new Set()).forEach(neighbor => {
+                        if (!visited.has(neighbor)) {
+                            visited.add(neighbor);
+                            next.push(neighbor);
+                        }
+                    });
+                });
+                frontier = next;
+            }
+            return visited;
         },
 
         get canvasSize() {
@@ -899,84 +1104,90 @@ function eloquentLens(apiUrl) {
         get edges() {
             const result = [];
             const nodeW = 260;
+            const focus = this.focusedModels;
 
+            // Pass 1: collect candidates that pass all filters
+            const candidates = [];
             Object.entries(this.allModels).forEach(([name, model]) => {
+                if (focus && !focus.has(name)) return;
                 Object.entries(model.relationships).forEach(([relName, rel]) => {
                     if (!rel.model || !this.allModels[rel.model]) return;
+                    if (focus && !focus.has(rel.model)) return;
                     if (!this.positions[name] || !this.positions[rel.model]) return;
                     if (this.relFilter !== 'all' && !rel.type.includes(this.relFilter)) return;
+                    candidates.push({ name, relName, rel });
+                });
+            });
 
-                    const from = this.positions[name];
-                    const to = this.positions[rel.model];
-                    const fromH = this.getCardHeight(name);
-                    const toH = this.getCardHeight(rel.model);
+            // Pass 2: group parallel edges by directed pair (so the slot index is stable)
+            const groups = {};
+            candidates.forEach((c, i) => {
+                const key = c.name + '|' + c.rel.model;
+                (groups[key] = groups[key] || []).push(i);
+            });
 
-                    // Center points
-                    const cx1 = from.x + nodeW / 2;
-                    const cy1 = from.y + fromH / 2;
-                    const cx2 = to.x + nodeW / 2;
-                    const cy2 = to.y + toH / 2;
+            // Pass 3: build paths with perpendicular offset for parallels
+            candidates.forEach((c, i) => {
+                const { name, relName, rel } = c;
+                const group = groups[name + '|' + rel.model];
+                const slot = group.indexOf(i);
+                const parallel = group.length > 1 ? (slot - (group.length - 1) / 2) * 14 : 0;
 
-                    // Determine exit/entry sides
-                    const dx = cx2 - cx1;
-                    const dy = cy2 - cy1;
+                const from = this.positions[name];
+                const to = this.positions[rel.model];
+                const fromH = this.getCardHeight(name);
+                const toH = this.getCardHeight(rel.model);
 
-                    let sx, sy, ex, ey;
+                const cx1 = from.x + nodeW / 2;
+                const cy1 = from.y + fromH / 2;
+                const cx2 = to.x + nodeW / 2;
+                const cy2 = to.y + toH / 2;
 
-                    if (Math.abs(dx) > Math.abs(dy)) {
-                        // Horizontal: connect left/right sides
-                        if (dx > 0) {
-                            sx = from.x + nodeW;
-                            ex = to.x;
-                        } else {
-                            sx = from.x;
-                            ex = to.x + nodeW;
-                        }
-                        sy = cy1;
-                        ey = cy2;
-                    } else {
-                        // Vertical: connect top/bottom
-                        sx = cx1;
-                        ex = cx2;
-                        if (dy > 0) {
-                            sy = from.y + fromH;
-                            ey = to.y;
-                        } else {
-                            sy = from.y;
-                            ey = to.y + toH;
-                        }
-                    }
+                const dx = cx2 - cx1;
+                const dy = cy2 - cy1;
+                const horizontal = Math.abs(dx) > Math.abs(dy);
 
-                    // Bezier control offset
-                    const offset = Math.min(60, Math.sqrt(dx * dx + dy * dy) * 0.3);
-                    let c1x, c1y, c2x, c2y;
+                let sx, sy, ex, ey;
+                if (horizontal) {
+                    if (dx > 0) { sx = from.x + nodeW; ex = to.x; }
+                    else        { sx = from.x;         ex = to.x + nodeW; }
+                    sy = cy1; ey = cy2;
+                } else {
+                    sx = cx1; ex = cx2;
+                    if (dy > 0) { sy = from.y + fromH; ey = to.y; }
+                    else        { sy = from.y;        ey = to.y + toH; }
+                }
 
-                    if (Math.abs(dx) > Math.abs(dy)) {
-                        c1x = sx + (dx > 0 ? offset : -offset);
-                        c1y = sy;
-                        c2x = ex + (dx > 0 ? -offset : offset);
-                        c2y = ey;
-                    } else {
-                        c1x = sx;
-                        c1y = sy + (dy > 0 ? offset : -offset);
-                        c2x = ex;
-                        c2y = ey + (dy > 0 ? -offset : offset);
-                    }
+                // Apply perpendicular parallel-edge offset
+                if (parallel) {
+                    if (horizontal) { sy += parallel; ey += parallel; }
+                    else            { sx += parallel; ex += parallel; }
+                }
 
-                    const isActive =
-                        this.selectedModel === name || this.selectedModel === rel.model ||
-                        this.hoveredModel === name || this.hoveredModel === rel.model;
-                    const hasHighlight = this.selectedModel || this.hoveredModel;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const ctrl = Math.min(60, dist * 0.3);
+                let c1x, c1y, c2x, c2y;
+                if (horizontal) {
+                    c1x = sx + (dx > 0 ? ctrl : -ctrl); c1y = sy;
+                    c2x = ex + (dx > 0 ? -ctrl : ctrl); c2y = ey;
+                } else {
+                    c1x = sx; c1y = sy + (dy > 0 ? ctrl : -ctrl);
+                    c2x = ex; c2y = ey + (dy > 0 ? -ctrl : ctrl);
+                }
 
-                    result.push({
-                        key: `${name}-${rel.model}-${relName}`,
-                        path: `M${sx},${sy} C${c1x},${c1y} ${c2x},${c2y} ${ex},${ey}`,
-                        color: this.relColors[rel.type] || '#666',
-                        type: rel.type,
-                        isActive,
-                        isDashed: rel.type.includes('morph'),
-                        opacity: hasHighlight ? (isActive ? 1 : 0.08) : 0.5,
-                    });
+                const isActive =
+                    this.selectedModel === name || this.selectedModel === rel.model ||
+                    this.hoveredModel === name || this.hoveredModel === rel.model;
+                const hasHighlight = this.selectedModel || this.hoveredModel;
+
+                result.push({
+                    key: `${name}-${rel.model}-${relName}`,
+                    path: `M${sx},${sy} C${c1x},${c1y} ${c2x},${c2y} ${ex},${ey}`,
+                    color: this.relColors[rel.type] || '#666',
+                    type: rel.type,
+                    isActive,
+                    isDashed: rel.type.includes('morph'),
+                    opacity: hasHighlight ? (isActive ? 1 : 0.08) : 0.5,
                 });
             });
 
@@ -1163,6 +1374,53 @@ function eloquentLens(apiUrl) {
             return s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
         },
 
+        // ── Mini-map ──
+
+        panToMinimapPoint(e) {
+            const svg = e.currentTarget.querySelector('.minimap-svg') || e.currentTarget;
+            const rect = svg.getBoundingClientRect();
+            const cs = this.canvasSize;
+            // Compute the actual rendered SVG area inside the box (preserveAspectRatio=meet)
+            const scale = Math.min(rect.width / cs.w, rect.height / cs.h);
+            const renderedW = cs.w * scale;
+            const renderedH = cs.h * scale;
+            const offsetX = (rect.width - renderedW) / 2;
+            const offsetY = (rect.height - renderedH) / 2;
+            // Mouse position inside the minimap, accounting for centering offset
+            const mx = e.clientX - rect.left - offsetX;
+            const my = e.clientY - rect.top - offsetY;
+            // Translate to content coords
+            const contentX = mx / scale;
+            const contentY = my / scale;
+            const canvas = this.$refs.canvas;
+            if (!canvas) return;
+            canvas.scrollLeft = contentX * this.zoom - canvas.clientWidth / 2;
+            canvas.scrollTop  = contentY * this.zoom - canvas.clientHeight / 2;
+        },
+
+        onMinimapMouseDown(e) {
+            if (e.target.classList.contains('minimap-close')) return;
+            this.draggingMinimap = true;
+            this.panToMinimapPoint(e);
+        },
+
+        onMinimapMouseMove(e) {
+            if (!this.draggingMinimap) return;
+            this.panToMinimapPoint(e);
+        },
+
+        cycleFocus() {
+            if (!this.focusMode) {
+                this.focusMode = true;
+                this.focusHops = 1;
+            } else if (this.focusHops < 3) {
+                this.focusHops += 1;
+            } else {
+                this.focusMode = false;
+                this.focusHops = 1;
+            }
+        },
+
         // ── Keyboard shortcuts ──
 
         onKeydown(e) {
@@ -1206,6 +1464,16 @@ function eloquentLens(apiUrl) {
                 case 'P':
                     e.preventDefault();
                     this.showPathFinder = !this.showPathFinder;
+                    break;
+                case 'n':
+                case 'N':
+                    e.preventDefault();
+                    this.cycleFocus();
+                    break;
+                case 'l':
+                case 'L':
+                    e.preventDefault();
+                    this.layoutMode = this.layoutMode === 'force' ? 'dagre' : 'force';
                     break;
                 case '?':
                     e.preventDefault();
