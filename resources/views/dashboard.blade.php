@@ -3,6 +3,7 @@
 @section('content')
 <div
     x-data="eloquentLens('{{ $apiUrl }}')"
+    x-cloak
     style="height: 100vh; display: flex; flex-direction: column; overflow: hidden;"
 >
     {{-- Loading overlay --}}
@@ -31,6 +32,13 @@
     {{-- ═══ Top Navigation Bar ═══ --}}
     <header class="topbar">
         <div class="topbar-left">
+            <button
+                class="btn btn-ghost sidebar-toggle"
+                @click="sidebarOpen = !sidebarOpen"
+                :aria-expanded="sidebarOpen"
+                aria-label="Toggle models sidebar"
+                title="Toggle models sidebar"
+            >☰</button>
             <div class="logo">
                 <div class="logo-icon">E</div>
                 <div class="logo-text">Eloquent<span>Lens</span></div>
@@ -111,8 +119,11 @@
     {{-- ═══ Main Content ═══ --}}
     <div class="main-layout">
 
+        {{-- ── Sidebar backdrop (mobile only) ── --}}
+        <div class="sidebar-backdrop" x-show="sidebarOpen" @click="sidebarOpen = false" x-transition.opacity></div>
+
         {{-- ── Model List Sidebar ── --}}
-        <div class="sidebar">
+        <div class="sidebar" :class="{ 'open': sidebarOpen }">
             <div class="sidebar-header">
                 <span class="sidebar-title">Models</span>
                 <span class="sidebar-count" x-text="modelCount"></span>
@@ -122,7 +133,7 @@
                     type="text"
                     class="sidebar-search-input"
                     placeholder="Filter..."
-                    x-model="sidebarFilter"
+                    x-model="searchQuery"
                 />
             </div>
             <div class="sidebar-list">
@@ -130,6 +141,7 @@
                     <button
                         class="sidebar-item"
                         :class="{ 'active': selectedModel === name }"
+                        :aria-pressed="selectedModel === name"
                         @click="focusModel(name)"
                     >
                         <span class="sidebar-item-dot" :style="'background:' + complexityColor(allModels[name].complexity)"></span>
@@ -282,8 +294,9 @@ function eloquentLens(apiUrl) {
         activeTab: 'overview',
         dragging: null,
         dragOffset: { x: 0, y: 0 },
+        pendingDrag: null,
         zoom: 1,
-        sidebarFilter: '',
+        sidebarOpen: false,
         loading: true,
         loadingSteps: [],
         loadingTip: '',
@@ -372,19 +385,14 @@ function eloquentLens(apiUrl) {
                 this.loadingSteps[2] = { ...this.loadingSteps[2], active: true };
                 await this.$nextTick();
 
-                // Step 3: Build adjacency graph (instant, but show it)
-                await new Promise(r => setTimeout(r, 120));
-
                 this.loadingSteps[2] = { ...this.loadingSteps[2], done: true, active: false };
                 this.loadingSteps[3] = { ...this.loadingSteps[3], active: true };
                 await this.$nextTick();
 
-                // Step 4: Generate positions
                 this.positions = {};
                 this.generatePositions();
 
                 this.loadingSteps[3] = { label: 'Layout ready — enjoy!', done: true, active: false };
-                await new Promise(r => setTimeout(r, 300));
 
                 this.$nextTick(() => { this.fitToView(); });
 
@@ -392,7 +400,6 @@ function eloquentLens(apiUrl) {
                 this.loadingSteps = this.loadingSteps.map(s => s.active ? { ...s, label: 'Error: ' + e.message, active: false } : s);
                 this.loadingTip = 'Something went wrong. Check the console.';
                 console.error('EloquentLens:', e);
-                await new Promise(r => setTimeout(r, 2000));
             } finally {
                 this.loading = false;
             }
@@ -400,6 +407,8 @@ function eloquentLens(apiUrl) {
 
         async refreshModels() {
             this.selectedModel = null;
+            this.searchQuery = '';
+            this.relFilter = 'all';
             await this.fetchModels();
             this.$nextTick(() => { this.fitToView(); });
         },
@@ -685,7 +694,7 @@ function eloquentLens(apiUrl) {
             const vw = canvas.clientWidth;
             const vh = canvas.clientHeight;
             const z = Math.min(vw / cs.w, vh / cs.h);
-            this.zoom = Math.round(Math.max(0.1, Math.min(1, z)) * 100) / 100;
+            this.zoom = Math.round(Math.max(0.1, Math.min(2, z)) * 100) / 100;
             this.$nextTick(() => {
                 canvas.scrollLeft = 0;
                 canvas.scrollTop = 0;
@@ -864,8 +873,8 @@ function eloquentLens(apiUrl) {
 
         get sidebarModels() {
             const names = Object.keys(this.allModels).sort();
-            if (!this.sidebarFilter) return names;
-            const q = this.sidebarFilter.toLowerCase();
+            if (!this.searchQuery) return names;
+            const q = this.searchQuery.toLowerCase();
             return names.filter(n => n.toLowerCase().includes(q));
         },
 
@@ -910,16 +919,26 @@ function eloquentLens(apiUrl) {
         // ── Dragging ──
 
         startDrag(e, name) {
-            this.dragging = name;
             const canvas = this.$refs.canvas;
             const rect = canvas.getBoundingClientRect();
-            this.dragOffset = {
-                x: (e.clientX - rect.left + canvas.scrollLeft) / this.zoom - this.positions[name].x,
-                y: (e.clientY - rect.top + canvas.scrollTop) / this.zoom - this.positions[name].y,
+            this.pendingDrag = {
+                name,
+                startX: e.clientX,
+                startY: e.clientY,
+                offsetX: (e.clientX - rect.left + canvas.scrollLeft) / this.zoom - this.positions[name].x,
+                offsetY: (e.clientY - rect.top + canvas.scrollTop) / this.zoom - this.positions[name].y,
             };
         },
 
         onMouseMove(e) {
+            if (this.pendingDrag) {
+                const dx = e.clientX - this.pendingDrag.startX;
+                const dy = e.clientY - this.pendingDrag.startY;
+                if (dx * dx + dy * dy < 16) return; // 4px threshold
+                this.dragging = this.pendingDrag.name;
+                this.dragOffset = { x: this.pendingDrag.offsetX, y: this.pendingDrag.offsetY };
+                this.pendingDrag = null;
+            }
             if (!this.dragging) return;
             const canvas = this.$refs.canvas;
             const rect = canvas.getBoundingClientRect();
@@ -931,6 +950,7 @@ function eloquentLens(apiUrl) {
 
         onMouseUp() {
             this.dragging = null;
+            this.pendingDrag = null;
         },
 
         // ── Zoom ──
@@ -1010,6 +1030,30 @@ function eloquentLens(apiUrl) {
 
         relTypeLabel(type) {
             return this.relLabels[type] || type;
+        },
+
+        lcfirst(s) {
+            return s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
+        },
+
+        traitTagStyle(trait) {
+            const specials = {
+                SoftDeletes: '#ef4444',
+                Searchable:  '#3b82f6',
+                Notifiable:  '#22c55e',
+                HasApiTokens: '#a855f7',
+                HasFactory:   '#06b6d4',
+                HasUuids:     '#f59e0b',
+                HasRoles:     '#ec4899',
+            };
+            const palette = ['#22c55e', '#3b82f6', '#a855f7', '#06b6d4', '#f59e0b', '#ec4899', '#f97316', '#84cc16'];
+            let color = specials[trait];
+            if (!color) {
+                let h = 0;
+                for (let i = 0; i < trait.length; i++) h = (h * 31 + trait.charCodeAt(i)) >>> 0;
+                color = palette[h % palette.length];
+            }
+            return `color:${color};background:${color}14;border-color:${color}33`;
         },
     };
 }

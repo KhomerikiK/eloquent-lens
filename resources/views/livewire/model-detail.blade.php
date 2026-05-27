@@ -7,7 +7,7 @@
                 <div class="detail-name" x-text="selectedModel" :title="selectedModel"></div>
                 <div class="detail-namespace" x-text="selectedModelData.namespace + '\\' + selectedModel" :title="selectedModelData.namespace + '\\' + selectedModel"></div>
             </div>
-            <button class="btn-close" @click="selectedModel = null">✕</button>
+            <button class="btn-close" @click="selectedModel = null" aria-label="Close detail panel">✕</button>
         </div>
 
         {{-- Complexity Meter --}}
@@ -77,11 +77,7 @@
                         <template x-for="trait in selectedModelData.traits" :key="trait">
                             <span
                                 class="tag"
-                                :style="trait === 'SoftDeletes'
-                                    ? 'color:#ef4444;background:rgba(239,68,68,0.08);border-color:rgba(239,68,68,0.2)'
-                                    : trait === 'Searchable'
-                                    ? 'color:#3b82f6;background:rgba(59,130,246,0.08);border-color:rgba(59,130,246,0.2)'
-                                    : 'color:#64748b;background:rgba(100,116,139,0.08);border-color:rgba(100,116,139,0.2)'"
+                                :style="traitTagStyle(trait)"
                                 x-text="trait"
                             ></span>
                         </template>

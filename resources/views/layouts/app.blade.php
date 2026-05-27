@@ -26,8 +26,8 @@
             --border-hover: #2e2e44;
             --text-primary: #e2e8f0;
             --text-secondary: #cbd5e1;
-            --text-muted: #8893a7;
-            --text-dim: #64748b;
+            --text-muted: #9aa6bb;
+            --text-dim: #7886a0;
             --accent: #7c3aed;
             --accent-light: #a78bfa;
             --accent-bg: rgba(124, 58, 237, 0.08);
@@ -48,6 +48,15 @@
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
         [x-cloak] { display: none !important; }
+
+        :focus { outline: none; }
+        button:focus-visible,
+        input:focus-visible,
+        select:focus-visible,
+        [role="button"]:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
 
         body {
             font-family: var(--mono);
@@ -186,20 +195,23 @@
 
         /* ── Top Navigation Bar ───────────────────────────────── */
         .topbar {
-            height: 56px;
+            min-height: 56px;
             background: var(--bg-secondary);
             border-bottom: 1px solid var(--border);
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 0 20px;
+            padding: 8px 20px;
             flex-shrink: 0;
+            flex-wrap: wrap;
+            gap: 10px;
             z-index: 50;
         }
 
         .topbar-left {
             display: flex;
             align-items: center;
+            flex-wrap: wrap;
             gap: 14px;
         }
 
@@ -262,6 +274,7 @@
         .topbar-right {
             display: flex;
             align-items: center;
+            flex-wrap: wrap;
             gap: 10px;
         }
 
@@ -371,14 +384,15 @@
 
         /* ── Legend Bar ────────────────────────────────────────── */
         .legend-bar {
-            height: 36px;
+            min-height: 36px;
             background: #0b0b12;
             border-bottom: 1px solid var(--border);
             display: flex;
             align-items: center;
-            padding: 0 20px;
+            padding: 6px 20px;
             gap: 18px;
             flex-shrink: 0;
+            flex-wrap: wrap;
         }
 
         .legend-item {
@@ -408,8 +422,8 @@
         .main-layout {
             display: flex;
             flex: 1;
+            min-height: 0;
             overflow: hidden;
-            height: calc(100vh - 92px);
         }
 
         /* ── Sidebar ─────────────────────────────────────────── */
@@ -1134,6 +1148,24 @@
             z-index: 5;
         }
 
+        /* ── Sidebar toggle (mobile) ──────────────────────────── */
+        .sidebar-toggle {
+            display: none;
+            padding: 0;
+            width: 34px;
+            justify-content: center;
+            font-size: 16px;
+        }
+
+        .sidebar-backdrop {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 39;
+            backdrop-filter: blur(2px);
+        }
+
         /* ── Responsive ───────────────────────────────────────── */
         @media (max-width: 1200px) {
             .detail-panel { width: 340px; }
@@ -1142,7 +1174,36 @@
         }
 
         @media (max-width: 900px) {
-            .sidebar { display: none; }
+            .sidebar-toggle { display: inline-flex; }
+            .sidebar {
+                position: fixed;
+                top: 0;
+                bottom: 0;
+                left: 0;
+                width: 240px;
+                z-index: 40;
+                transform: translateX(-100%);
+                transition: transform 0.25s ease;
+                display: flex;
+            }
+            .sidebar.open {
+                transform: translateX(0);
+                box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5);
+            }
+            .sidebar-backdrop { display: block; }
+            .detail-panel { width: 300px; }
+        }
+
+        @media (max-width: 600px) {
+            .detail-panel {
+                position: fixed;
+                top: 0;
+                bottom: 0;
+                right: 0;
+                width: 90vw;
+                max-width: 360px;
+                z-index: 41;
+            }
         }
     </style>
 </head>

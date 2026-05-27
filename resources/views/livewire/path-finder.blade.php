@@ -1,10 +1,10 @@
 {{-- Path Finder Modal --}}
 <div class="modal-overlay" @click.self="showPathFinder = false" @keydown.escape.window="showPathFinder = false">
-    <div class="modal-content">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="path-finder-title">
         {{-- Header --}}
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-            <div class="modal-title">Relationship Path Finder</div>
-            <button class="btn-close" @click="showPathFinder = false">✕</button>
+            <div class="modal-title" id="path-finder-title">Relationship Path Finder</div>
+            <button class="btn-close" @click="showPathFinder = false" aria-label="Close path finder">✕</button>
         </div>
 
         <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 16px;">
@@ -13,7 +13,7 @@
 
         {{-- Selects --}}
         <div style="display: flex; gap: 12px; margin-bottom: 16px;">
-            <select x-model="pathFrom" class="filter-select" style="flex: 1; height: 40px;">
+            <select x-model="pathFrom" @change="pathResults = null" class="filter-select" style="flex: 1; height: 40px;">
                 <option value="">From model...</option>
                 <template x-for="name in modelNames" :key="'pf-'+name">
                     <option :value="name" x-text="name"></option>
@@ -22,7 +22,7 @@
 
             <span style="color: var(--text-muted); align-self: center; font-size: 18px;">→</span>
 
-            <select x-model="pathTo" class="filter-select" style="flex: 1; height: 40px;">
+            <select x-model="pathTo" @change="pathResults = null" class="filter-select" style="flex: 1; height: 40px;">
                 <option value="">To model...</option>
                 <template x-for="name in modelNames" :key="'pt-'+name">
                     <option :value="name" x-text="name"></option>
@@ -64,9 +64,12 @@
                             </div>
                         </template>
 
-                        {{-- Eloquent chain --}}
-                        <div class="path-eloquent">
-                            $<span x-text="pathFrom.toLowerCase()"></span>-><span x-text="path.map(s => s.rel).join('->')"></span>
+                        {{-- Conceptual chain (not executable PHP — intermediate steps may return collections) --}}
+                        <div class="path-eloquent" :title="'Conceptual traversal — intermediate steps may return collections'">
+                            <span style="color: var(--text-dim)">chain:</span>
+                            $<span x-text="lcfirst(pathFrom)"></span><template x-for="(s, j) in path" :key="'pe-'+i+'-'+j">
+                                <span>-&gt;<span x-text="s.rel"></span></span>
+                            </template>
                         </div>
                     </div>
                 </template>
