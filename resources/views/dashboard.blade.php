@@ -4,6 +4,7 @@
 <div
     x-data="eloquentLens('{{ $apiUrl }}')"
     x-cloak
+    @keydown.window="onKeydown($event)"
     style="height: 100vh; display: flex; flex-direction: column; overflow: hidden;"
 >
     {{-- Loading overlay --}}
@@ -262,9 +263,10 @@
 
             {{-- Zoom Controls --}}
             <div class="zoom-controls">
-                <button class="zoom-btn" @click="zoomOut()" title="Zoom out">−</button>
+                <button class="zoom-btn" @click="zoomOut()" title="Zoom out" aria-label="Zoom out">−</button>
                 <span class="zoom-level" x-text="Math.round(zoom * 100) + '%'"></span>
-                <button class="zoom-btn" @click="zoomIn()" title="Zoom in">+</button>
+                <button class="zoom-btn" @click="zoomIn()" title="Zoom in" aria-label="Zoom in">+</button>
+                <button class="zoom-btn" @click="showShortcuts = true" title="Keyboard shortcuts (?)" aria-label="Show keyboard shortcuts">?</button>
             </div>
         </div>
 
@@ -277,6 +279,34 @@
     {{-- ═══ Path Finder Modal ═══ --}}
     <template x-if="showPathFinder">
         @include('eloquent-lens::livewire.path-finder')
+    </template>
+
+    {{-- ═══ Keyboard Shortcuts Modal ═══ --}}
+    <template x-if="showShortcuts">
+        <div class="modal-overlay" @click.self="showShortcuts = false">
+            <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="shortcuts-title" style="width: 380px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <div class="modal-title" id="shortcuts-title">Keyboard Shortcuts</div>
+                    <button class="btn-close" @click="showShortcuts = false" aria-label="Close shortcuts">✕</button>
+                </div>
+                <div class="shortcuts-grid">
+                    <template x-for="row in [
+                        ['/',      'Focus search'],
+                        ['Cmd K',  'Focus search (anywhere)'],
+                        ['F',      'Fit graph to viewport'],
+                        ['R',      'Reset layout'],
+                        ['P',      'Toggle Path Finder'],
+                        ['Esc',    'Close panel / modal'],
+                        ['?',      'Show this list'],
+                    ]" :key="row[0]">
+                        <div class="shortcut-row">
+                            <kbd class="shortcut-key" x-text="row[0]"></kbd>
+                            <span class="shortcut-label" x-text="row[1]"></span>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
     </template>
 </div>
 
@@ -297,6 +327,7 @@ function eloquentLens(apiUrl) {
         pendingDrag: null,
         zoom: 1,
         sidebarOpen: false,
+        showShortcuts: false,
         loading: true,
         loadingSteps: [],
         loadingTip: '',
@@ -344,7 +375,95 @@ function eloquentLens(apiUrl) {
         },
 
         async init() {
+            this.loadStored();
             await this.fetchModels();
+            this.applyUrlState();
+            this.watchPersistedState();
+            window.addEventListener('hashchange', () => this.applyUrlState());
+        },
+
+        get storageKey() {
+            return 'eloquent-lens:' + this.apiUrl;
+        },
+
+        loadStored() {
+            try {
+                const raw = localStorage.getItem(this.storageKey);
+                if (!raw) return;
+                const s = JSON.parse(raw);
+                if (s.positions && typeof s.positions === 'object') this.positions = s.positions;
+                if (typeof s.zoom === 'number') this.zoom = s.zoom;
+                if (typeof s.searchQuery === 'string') this.searchQuery = s.searchQuery;
+                if (typeof s.relFilter === 'string') this.relFilter = s.relFilter;
+                if (typeof s.selectedModel === 'string') this.selectedModel = s.selectedModel;
+            } catch (e) {
+                console.warn('EloquentLens: failed to load stored state', e);
+            }
+        },
+
+        _saveTimer: null,
+        saveStored() {
+            clearTimeout(this._saveTimer);
+            this._saveTimer = setTimeout(() => {
+                try {
+                    localStorage.setItem(this.storageKey, JSON.stringify({
+                        positions: this.positions,
+                        zoom: this.zoom,
+                        searchQuery: this.searchQuery,
+                        relFilter: this.relFilter,
+                        selectedModel: this.selectedModel,
+                    }));
+                } catch (e) {
+                    console.warn('EloquentLens: failed to save state', e);
+                }
+            }, 200);
+        },
+
+        clearStored() {
+            try { localStorage.removeItem(this.storageKey); } catch (e) {}
+        },
+
+        watchPersistedState() {
+            this.$watch('positions', () => this.saveStored());
+            this.$watch('zoom', () => this.saveStored());
+            this.$watch('searchQuery', () => this.saveStored());
+            this.$watch('relFilter', () => this.saveStored());
+            this.$watch('selectedModel', () => { this.saveStored(); this.syncUrl(); });
+            this.$watch('showPathFinder', () => this.syncUrl());
+            this.$watch('pathFrom', () => this.syncUrl());
+            this.$watch('pathTo', () => this.syncUrl());
+        },
+
+        // ── URL state (deep links) ──
+
+        applyUrlState() {
+            const hash = window.location.hash.replace(/^#/, '');
+            if (!hash) return;
+            if (hash.startsWith('path/')) {
+                const [, from, to] = hash.split('/');
+                if (from && this.allModels[decodeURIComponent(from)]) this.pathFrom = decodeURIComponent(from);
+                if (to && this.allModels[decodeURIComponent(to)]) this.pathTo = decodeURIComponent(to);
+                this.showPathFinder = true;
+            } else {
+                const name = decodeURIComponent(hash);
+                if (this.allModels[name]) this.focusModel(name);
+            }
+        },
+
+        _syncingUrl: false,
+        syncUrl() {
+            if (this._syncingUrl) return;
+            this._syncingUrl = true;
+            let hash = '';
+            if (this.showPathFinder && (this.pathFrom || this.pathTo)) {
+                hash = '#path/' + encodeURIComponent(this.pathFrom || '') + '/' + encodeURIComponent(this.pathTo || '');
+            } else if (this.selectedModel) {
+                hash = '#' + encodeURIComponent(this.selectedModel);
+            }
+            if (hash !== window.location.hash) {
+                history.replaceState(null, '', hash || window.location.pathname + window.location.search);
+            }
+            this._syncingUrl = false;
         },
 
         async fetchModels() {
@@ -389,12 +508,21 @@ function eloquentLens(apiUrl) {
                 this.loadingSteps[3] = { ...this.loadingSteps[3], active: true };
                 await this.$nextTick();
 
-                this.positions = {};
-                this.generatePositions();
+                const names = Object.keys(this.allModels);
+                const hasAllStored = names.length > 0 && names.every(n => this.positions[n]);
 
-                this.loadingSteps[3] = { label: 'Layout ready — enjoy!', done: true, active: false };
-
-                this.$nextTick(() => { this.fitToView(); });
+                if (hasAllStored) {
+                    // Drop stale positions for removed models, keep the rest
+                    const kept = {};
+                    names.forEach(n => { kept[n] = this.positions[n]; });
+                    this.positions = kept;
+                    this.loadingSteps[3] = { label: 'Restored saved layout', done: true, active: false };
+                } else {
+                    this.positions = {};
+                    this.generatePositions();
+                    this.loadingSteps[3] = { label: 'Layout ready — enjoy!', done: true, active: false };
+                    this.$nextTick(() => { this.fitToView(); });
+                }
 
             } catch (e) {
                 this.loadingSteps = this.loadingSteps.map(s => s.active ? { ...s, label: 'Error: ' + e.message, active: false } : s);
@@ -406,11 +534,9 @@ function eloquentLens(apiUrl) {
         },
 
         async refreshModels() {
-            this.selectedModel = null;
             this.searchQuery = '';
             this.relFilter = 'all';
             await this.fetchModels();
-            this.$nextTick(() => { this.fitToView(); });
         },
 
         generatePositions() {
@@ -681,6 +807,7 @@ function eloquentLens(apiUrl) {
         },
 
         resetLayout() {
+            this.positions = {};
             this.generatePositions();
             this.selectedModel = null;
             this.$nextTick(() => { this.fitToView(); });
@@ -1034,6 +1161,62 @@ function eloquentLens(apiUrl) {
 
         lcfirst(s) {
             return s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
+        },
+
+        // ── Keyboard shortcuts ──
+
+        onKeydown(e) {
+            const tag = e.target.tagName;
+            const isTyping = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable;
+
+            // Cmd/Ctrl+K: focus search (works while typing)
+            if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+                e.preventDefault();
+                this.focusSearch();
+                return;
+            }
+
+            // Esc: close topmost layer
+            if (e.key === 'Escape') {
+                if (this.showPathFinder) { this.showPathFinder = false; return; }
+                if (this.selectedModel)  { this.selectedModel = null; return; }
+                if (this.sidebarOpen)    { this.sidebarOpen = false; return; }
+                if (isTyping) e.target.blur();
+                return;
+            }
+
+            if (isTyping || e.metaKey || e.ctrlKey || e.altKey) return;
+
+            switch (e.key) {
+                case '/':
+                    e.preventDefault();
+                    this.focusSearch();
+                    break;
+                case 'f':
+                case 'F':
+                    e.preventDefault();
+                    this.fitToView();
+                    break;
+                case 'r':
+                case 'R':
+                    e.preventDefault();
+                    this.resetLayout();
+                    break;
+                case 'p':
+                case 'P':
+                    e.preventDefault();
+                    this.showPathFinder = !this.showPathFinder;
+                    break;
+                case '?':
+                    e.preventDefault();
+                    this.showShortcuts = !this.showShortcuts;
+                    break;
+            }
+        },
+
+        focusSearch() {
+            const el = document.querySelector('.topbar .search-input');
+            if (el) { el.focus(); el.select(); }
         },
 
         traitTagStyle(trait) {

@@ -1139,6 +1139,42 @@
             border-radius: 4px;
         }
 
+        /* ── Keyboard Shortcuts ──────────────────────────────── */
+        .shortcuts-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .shortcut-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+        }
+
+        .shortcut-key {
+            font-family: var(--mono);
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-primary);
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-hover);
+            border-bottom-width: 2px;
+            border-radius: 4px;
+            padding: 2px 8px;
+            min-width: 48px;
+            text-align: center;
+        }
+
+        .shortcut-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
         /* ── SVG Edges ────────────────────────────────────────── */
         .edge-svg {
             position: absolute;
