@@ -291,6 +291,22 @@
                 </div>
             </div>
 
+            {{-- Dense-graph hint: surfaces when the full view is too noisy to read --}}
+            <div
+                class="dense-hint"
+                x-show="modelCount > 40 && !selectedModel && !focusMode && !hintDismissed"
+                x-transition.opacity
+            >
+                <div class="dense-hint-body">
+                    <span class="dense-hint-icon">◎</span>
+                    <div class="dense-hint-text">
+                        <strong x-text="modelCount + ' models · ' + totalRelations + ' relations'"></strong>
+                        <span>Too dense to read all at once. Pick a model and press <kbd>N</kbd> to focus on its neighborhood.</span>
+                    </div>
+                    <button class="dense-hint-close" @click="hintDismissed = true" aria-label="Dismiss hint">✕</button>
+                </div>
+            </div>
+
             {{-- Mini-map --}}
             <div
                 class="minimap"
@@ -310,16 +326,16 @@
                     :viewBox="'0 0 ' + canvasSize.w + ' ' + canvasSize.h"
                     preserveAspectRatio="xMidYMid meet"
                 >
-                    {{-- Cards as small rects --}}
+                    {{-- Cards as small rects. Inflate height so flat LR layouts stay visible. --}}
                     <template x-for="(pos, name) in positions" :key="'mm-'+name">
                         <rect
                             :x="pos.x"
-                            :y="pos.y"
+                            :y="pos.y - 40"
                             width="260"
-                            :height="getCardHeight(name)"
-                            :fill="selectedModel === name ? 'var(--accent)' : complexityColor(allModels[name] ? allModels[name].complexity : 0)"
-                            :opacity="focusedModels && !focusedModels.has(name) ? 0.15 : 0.7"
-                            rx="20"
+                            :height="getCardHeight(name) + 80"
+                            :fill="selectedModel === name ? '#a78bfa' : complexityColor(allModels[name] ? allModels[name].complexity : 0)"
+                            :opacity="focusedModels && !focusedModels.has(name) ? 0.18 : (selectedModel === name ? 1 : 0.75)"
+                            rx="40"
                         />
                     </template>
 
@@ -329,10 +345,11 @@
                         :y="viewportRect.y"
                         :width="viewportRect.w"
                         :height="viewportRect.h"
-                        fill="rgba(124, 58, 237, 0.12)"
-                        stroke="var(--accent)"
-                        stroke-width="40"
+                        fill="rgba(124, 58, 237, 0.15)"
+                        stroke="#a78bfa"
+                        stroke-width="2"
                         vector-effect="non-scaling-stroke"
+                        pointer-events="none"
                     />
                 </svg>
             </div>
@@ -421,6 +438,7 @@ function eloquentLens(apiUrl) {
         showMiniMap: true,
         viewportRect: { x: 0, y: 0, w: 0, h: 0 },
         draggingMinimap: false,
+        hintDismissed: false,
         loadingSteps: [],
         loadingTip: '',
 
@@ -681,9 +699,19 @@ function eloquentLens(apiUrl) {
             const cardHeights = {};
             names.forEach(n => { cardHeights[n] = this.getCardHeight(n); });
 
-            // Build dagre graph
+            // Build dagre graph. TB on dense graphs reads better than LR on wide monitors
+            // because vertical scroll is cheaper and most Eloquent graphs have a few central
+            // hubs (User, Order) that benefit from a top-down arrangement.
             const g = new dagre.graphlib.Graph();
-            g.setGraph({ rankdir: 'LR', nodesep: 40, ranksep: 100, marginx: 60, marginy: 60 });
+            const dense = names.length > 40;
+            g.setGraph({
+                rankdir: dense ? 'TB' : 'LR',
+                nodesep: dense ? 24 : 40,
+                ranksep: dense ? 60 : 90,
+                marginx: 60,
+                marginy: 60,
+                ranker: 'tight-tree',
+            });
             g.setDefaultEdgeLabel(() => ({}));
 
             names.forEach(n => g.setNode(n, { width: cardW, height: cardHeights[n] }));
@@ -1236,13 +1264,27 @@ function eloquentLens(apiUrl) {
         },
 
         toggleSelect(name) {
-            this.selectedModel = this.selectedModel === name ? null : name;
+            const turningOn = this.selectedModel !== name;
+            const firstSelection = !this.selectedModel && !this.focusMode && this.modelCount > 40;
+            this.selectedModel = turningOn ? name : null;
             this.activeTab = 'overview';
+            if (turningOn && firstSelection) {
+                this.focusMode = true;
+                this.focusHops = 1;
+            }
         },
 
         focusModel(name) {
+            // First selection in a dense graph auto-enables focus mode so users
+            // aren't stuck staring at the hairball. They can press N to widen
+            // the radius or click Focus to turn it off.
+            const firstSelection = !this.selectedModel && !this.focusMode && this.modelCount > 40;
             this.selectedModel = name;
             this.activeTab = 'overview';
+            if (firstSelection) {
+                this.focusMode = true;
+                this.focusHops = 1;
+            }
             this.$nextTick(() => {
                 const canvas = this.$refs.canvas;
                 if (!canvas || !this.positions[name]) return;

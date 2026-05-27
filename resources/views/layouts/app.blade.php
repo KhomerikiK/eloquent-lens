@@ -605,6 +605,81 @@
             transform-origin: 0 0;
         }
 
+        /* ── Dense-graph Hint Banner ─────────────────────────── */
+        .dense-hint {
+            position: absolute;
+            top: 14px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 24;
+            max-width: 520px;
+            pointer-events: auto;
+        }
+
+        .dense-hint-body {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 14px;
+            background: rgba(13, 13, 20, 0.92);
+            backdrop-filter: blur(8px);
+            border: 1px solid var(--accent-border);
+            border-radius: 10px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+
+        .dense-hint-icon {
+            font-size: 16px;
+            color: var(--accent-light);
+            flex-shrink: 0;
+        }
+
+        .dense-hint-text {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            font-size: 11px;
+            color: var(--text-secondary);
+            line-height: 1.4;
+        }
+
+        .dense-hint-text strong {
+            color: var(--text-primary);
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .dense-hint-text kbd {
+            font-family: var(--mono);
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-hover);
+            border-bottom-width: 2px;
+            border-radius: 3px;
+            padding: 0 5px;
+            font-size: 10px;
+            color: var(--text-primary);
+        }
+
+        .dense-hint-close {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 12px;
+            padding: 4px 6px;
+            border-radius: 4px;
+            flex-shrink: 0;
+        }
+
+        .dense-hint-close:hover {
+            color: var(--text-primary);
+            background: var(--bg-tertiary);
+        }
+
+        @media (max-width: 700px) {
+            .dense-hint { display: none; }
+        }
+
         /* ── Mini-map ───────────────────────────────────────── */
         .minimap {
             position: absolute;
